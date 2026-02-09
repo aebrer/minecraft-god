@@ -1,0 +1,23 @@
+# Bedrock Dedicated Server (downloaded, not tracked)
+bds/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment / secrets
+.env
+
+# Logs
+logs/
+
+# PID files
+.*.pid
+
+# World data (large, generated)
+worlds/
+
+# OS
+.DS_Store
