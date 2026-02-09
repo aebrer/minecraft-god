@@ -9,7 +9,7 @@ load_dotenv(_project_root / ".env")
 
 # LLM
 ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY", "")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4/")
 GOD_MODEL = os.getenv("GOD_MODEL", "glm-4.7")
 
 # God tick settings

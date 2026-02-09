@@ -31,8 +31,23 @@ sed -i 's/^max-players=.*/max-players=5/' "$PROPS"
 sed -i 's/^allow-cheats=.*/allow-cheats=true/' "$PROPS"
 sed -i 's/^server-port=.*/server-port=19132/' "$PROPS"
 sed -i 's/^level-name=.*/level-name=God World/' "$PROPS"
+sed -i 's/^allow-list=.*/allow-list=true/' "$PROPS"
+sed -i 's/^content-log-file-enabled=.*/content-log-file-enabled=true/' "$PROPS"
+sed -i 's/^content-log-console-output-enabled=.*/content-log-console-output-enabled=true/' "$PROPS"
 
 echo "  server.properties configured"
+
+# --- allowlist.json ---
+echo "Configuring allowlist..."
+cat > "$BDS_DIR/allowlist.json" << 'ALLOWEOF'
+[
+    {
+        "name": "aebrer",
+        "ignoresPlayerLimit": true
+    }
+]
+ALLOWEOF
+echo "  allowlist configured (aebrer)"
 
 # --- Install behavior pack ---
 echo "Installing behavior pack..."
