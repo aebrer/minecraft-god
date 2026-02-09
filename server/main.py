@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS
+from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
@@ -30,6 +30,7 @@ kind_god = KindGod()
 deep_god = DeepGod()
 last_prayer_time: float = 0
 _tick_task: asyncio.Task | None = None
+_ticks_since_consolidation: int = 0
 
 
 class GameEvent(BaseModel):
@@ -52,6 +53,9 @@ async def lifespan(app: FastAPI):
             await _tick_task
         except asyncio.CancelledError:
             pass
+    # Flush memory to disk on shutdown
+    kind_god.memory._save()
+    logger.info("Kind God memory saved")
 
 
 app = FastAPI(title="minecraft-god", lifespan=lifespan)
@@ -95,6 +99,9 @@ async def get_status():
         "kind_god_action_count": kind_god.action_count,
         "kind_god_history_length": len(kind_god.conversation_history),
         "deep_god_history_length": len(deep_god.conversation_history),
+        "kind_god_memory_count": len(kind_god.memory.memories),
+        "last_consolidation": kind_god.memory.last_consolidation,
+        "ticks_until_consolidation": max(0, MEMORY_CONSOLIDATION_INTERVAL_TICKS - _ticks_since_consolidation),
         "player_status": event_buffer.get_player_status(),
     }
 
@@ -138,3 +145,14 @@ async def _god_tick():
     if commands:
         command_queue.extend(commands)
         logger.info(f"Queued {len(commands)} commands")
+
+    # Memory consolidation check
+    global _ticks_since_consolidation
+    _ticks_since_consolidation += 1
+    if _ticks_since_consolidation >= MEMORY_CONSOLIDATION_INTERVAL_TICKS:
+        _ticks_since_consolidation = 0
+        logger.info("=== KIND GOD MEMORY CONSOLIDATION ===")
+        try:
+            await kind_god.memory.consolidate(kind_god.conversation_history)
+        except Exception:
+            logger.exception("Memory consolidation failed")

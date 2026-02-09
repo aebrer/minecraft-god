@@ -66,6 +66,9 @@ cp .env.example .env          # add ZHIPU_API_KEY
 ./scripts/start.sh
 ```
 
+## HARD RULES
+- **NEVER use sudo.** All operations must run as the current user. No exceptions.
+
 ## Important Notes
 - `@minecraft/server-net` requires Beta APIs experiment enabled on the world
 - `bds/config/default/permissions.json` must include `@minecraft/server-net` in allowed_modules

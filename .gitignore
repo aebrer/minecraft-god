@@ -22,5 +22,8 @@ worlds/
 # Backups
 backups/
 
+# Runtime data (memory files are server-specific)
+data/*.json
+
 # OS
 .DS_Store
