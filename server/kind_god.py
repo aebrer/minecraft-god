@@ -5,9 +5,10 @@ Benevolent, bound by Rules, cryptic by necessity, afraid of what's below.
 
 import logging
 
-from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE
+from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE, MEMORY_FILE
 from server.llm import client
 from server.commands import translate_tool_calls
+from server.memory import KindGodMemory
 
 logger = logging.getLogger("minecraft-god")
 
@@ -281,6 +282,7 @@ class KindGod:
     def __init__(self):
         self.conversation_history: list[dict] = []
         self.action_count: int = 0  # tracks interventions for Deep God trigger
+        self.memory = KindGodMemory(MEMORY_FILE)
 
     async def think(self, event_summary: str) -> list[dict]:
         """Process events and return Minecraft commands."""
@@ -289,10 +291,14 @@ class KindGod:
             "content": f"=== WORLD UPDATE ===\n\n{event_summary}\n\nWhat do you do, if anything?",
         })
 
+        # Inject persistent memory into the system prompt
+        memory_block = self.memory.format_for_prompt()
+        system_content = SYSTEM_PROMPT + memory_block
+
         try:
             response = await client.chat.completions.create(
                 model=GOD_MODEL,
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + self.conversation_history,
+                messages=[{"role": "system", "content": system_content}] + self.conversation_history,
                 tools=TOOLS,
                 tool_choice="auto",
                 temperature=0.9,

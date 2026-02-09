@@ -41,13 +41,15 @@ echo "  server.properties configured"
 echo "Configuring allowlist..."
 cat > "$BDS_DIR/allowlist.json" << 'ALLOWEOF'
 [
-    {
-        "name": "aebrer",
-        "ignoresPlayerLimit": true
-    }
+    {"name": "aebrer", "ignoresPlayerLimit": true},
+    {"name": "BUBBACHUBUBBA"},
+    {"name": "Embrer1890"},
+    {"name": "BldngARoad"},
+    {"name": "MORBIDCARNAG3"},
+    {"name": "gmfern"}
 ]
 ALLOWEOF
-echo "  allowlist configured (aebrer)"
+echo "  allowlist configured (6 players)"
 
 # --- Install behavior pack ---
 echo "Installing behavior pack..."

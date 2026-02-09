@@ -29,5 +29,11 @@ DEEP_GOD_RANDOM_CHANCE = 0.05  # base random chance per tick when below Y=30
 BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 
+# Kind God memory
+MEMORY_DIR = _project_root / "data"
+MEMORY_FILE = MEMORY_DIR / "kind_god_memory.json"
+MEMORY_MAX_ENTRIES = int(os.getenv("MEMORY_MAX_ENTRIES", "15"))
+MEMORY_CONSOLIDATION_INTERVAL_TICKS = int(os.getenv("MEMORY_CONSOLIDATION_INTERVAL_TICKS", "960"))
+
 # Prayer keywords that trigger immediate Kind God response
 PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "lord"}
