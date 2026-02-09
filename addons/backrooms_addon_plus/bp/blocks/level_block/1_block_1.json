@@ -1,0 +1,26 @@
+{
+	"format_version": "1.21.50",
+	"minecraft:block": {
+		"description": {
+			"identifier": "hh:block_1_fake",
+			"menu_category": {
+				"category": "construction"
+			}
+		},
+		"components": {
+			"minecraft:collision_box": false,
+			"minecraft:selection_box": false,
+			"minecraft:destructible_by_mining": false,
+			"minecraft:destructible_by_explosion": false,
+			"minecraft:geometry": "geometry.fake_block",
+			"minecraft:material_instances": {
+				"*": {
+					"texture": "level_1",
+					"render_method": "alpha_test"
+				}
+			},
+			"minecraft:light_emission": 0,
+			"minecraft:map_color": "#3a3c3d"
+		}
+	}
+}

@@ -1,0 +1,68 @@
+{
+  "entity_sounds": {
+    "entities": {
+      "hh:entity_0": {
+        "volume": 1.0,
+        "pitch": [0.6, 1.0],
+        "events": {
+          "ambient": "ambient.cave",
+          "hurt": "mob.stray.hurt",
+          "step": {
+            "sound": "mob.husk.step",
+            "pitch": 1.0
+          },
+          "death": {
+            "sound": "mob.husk.death",
+            "pitch": 1.0
+          },
+          "prepare.attack": {
+            "sound": "ambient.cave",
+            "volume": 0.7,
+            "pitch": 1.0
+          },
+          "cast.spell": {
+            "sound": "ambient.cave",
+            "volume": 0.7,
+            "pitch": 1.0
+          },
+          "prepare.summon": {
+            "sound": "ambient.cave",
+            "volume": 0.7,
+            "pitch": 1.0
+          }
+        }
+      },
+      "hh:smiler": {
+        "volume": 1.0,
+        "pitch": [0.6, 1.0],
+        "events": {
+          "ambient": "ambient.basalt_deltas.mood",
+          "hurt": "mob.vex.charge",
+          "step": {
+            "sound": "mob.spider.step",
+            "pitch": 1.0
+          },
+          "death": {
+            "sound": "mob.spider.death",
+            "pitch": 1.0
+          },
+          "prepare.attack": {
+            "sound": "ambient.basalt_deltas.mood",
+            "volume": 0.7,
+            "pitch": 1.0
+          },
+          "cast.spell": {
+            "sound": "ambient.basalt_deltas.mood",
+            "volume": 0.7,
+            "pitch": 1.0
+          },
+          "prepare.summon": {
+            "sound": "ambient.basalt_deltas.mood",
+            "volume": 0.7,
+            "pitch": 1.0
+          }
+        }
+      }
+    }
+  }
+}

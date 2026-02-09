@@ -1,0 +1,26 @@
+{
+	"format_version": "1.21.50",
+	"minecraft:block": {
+		"description": {
+			"identifier": "hh:damage_block",
+			"menu_category": {
+				"category": "equipment"
+			}
+		},
+		"components": {
+			"minecraft:collision_box": false,
+			"minecraft:selection_box": true,
+			"minecraft:destructible_by_mining": false,
+			"minecraft:destructible_by_explosion": false,
+			"minecraft:geometry": "geometry.airs",
+			"minecraft:material_instances": {
+				"*": {
+					"texture": "invisibility",
+					"render_method": "blend"
+				}
+			},
+			"minecraft:light_emission": 0,
+			"minecraft:map_color": "#3a3c3d"
+		}
+	}
+}

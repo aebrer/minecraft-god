@@ -1,0 +1,125 @@
+{
+	"resource_pack_name": "The Backrooms Addon+",
+	"texture_name": "atlas.terrain",
+	"padding": 8,
+	"num_mip_levels": 4,
+	"texture_data": {
+		"oak": {
+			"textures": "textures/entities/oak_planks.png"
+		},
+                "level_0": {
+			"textures": "textures/blocks/l0/block.png"
+		},
+                "level_02": {
+			"textures": "textures/blocks/l0/block2.png"
+		},
+                "invisibility": {
+			"textures": "textures/blocks/invisibility.png"
+		},
+                "black": {
+			"textures": "textures/blocks/black.png"
+		},
+                "clip": {
+			"textures": "textures/blocks/clip.png"
+		},
+                "level_1": {
+			"textures": "textures/blocks/1block.png"
+		},
+                "line": {
+			"textures": "textures/blocks/line.png"
+		},
+                "water_1": {
+			"textures": "textures/blocks/water_1.png"
+		},
+                "white": {
+			"textures": "textures/blocks/white.png"
+		},
+                "pipe": {
+			"textures": "textures/blocks/pipe.png"
+		},
+                "bolt_wire": {
+			"textures": "textures/blocks/wire_bolt.png"
+		},
+                "officeblock": {
+			"textures": "textures/blocks/officeblock.png"
+		},
+                "white_blend": {
+			"textures": "textures/blocks/white_blend.png"
+		},
+                "table_office": {
+			"textures": "textures/blocks/table_office.png"
+		},
+                "office_chair": {
+			"textures": "textures/blocks/office_chair.png"
+		},
+                "monitor": {
+			"textures": "textures/blocks/monitor.png"
+		},
+                "desktop": {
+			"textures": "textures/blocks/desktop.png"
+		},
+                "poolblock": {
+			"textures": "textures/blocks/poolblock.png"
+		},
+                "level_run__block": {
+			"textures": "textures/blocks/level_run__block.png"
+		},
+                "level_run_2_block": {
+			"textures": "textures/blocks/level_run__block2.png"
+		},
+                "run_block": {
+			"textures": "textures/blocks/run_block.png"
+		},
+                "run_door": {
+			"textures": "textures/blocks/run_door.png"
+		},
+                "run_door2": {
+			"textures": "textures/blocks/run_door2.png"
+		},
+                "fun_block": {
+			"textures": "textures/blocks/fun_block.png"
+		},
+                "table_fun": {
+			"textures": "textures/blocks/table_fun.png"
+		},
+                "black_clip": {
+			"textures": "textures/blocks/black_clip.png"
+		},
+                "0_image": {
+			"textures": "textures/blocks/0_image.png"
+		},
+                "iron_37": {
+			"textures": "textures/blocks/iron_37.png"
+		},
+                "key": {
+			"textures": "textures/blocks/key.png"
+		},
+                "green_door": {
+			"textures": "textures/blocks/green_door.png"
+		},
+                "green_door2": {
+			"textures": "textures/blocks/green_door2.png"
+		},
+                "box": {
+			"textures": "textures/blocks/box.png"
+		},
+                "neon_door": {
+			"textures": "textures/blocks/neon_door.png"
+		},
+                "neon_door2": {
+			"textures": "textures/blocks/neon_door2.png"
+		},
+                "rainbow": {
+			"textures": "textures/blocks/rainbow.png"
+		},
+                "arcade": {
+			"textures": "textures/blocks/arcade.png"
+		},
+                "balloons": {
+			"textures": "textures/blocks/balloons.png"
+		},
+                "balloon_red": {
+			"textures": "textures/blocks/balloon_red.png"
+		}
+	}
+}

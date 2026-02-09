@@ -77,3 +77,11 @@ cp .env.example .env          # add ZHIPU_API_KEY
 - Never commit `.env` (contains API key)
 - Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM (prompt injection mitigation)
 - `commands.py` enforces a command allowlist — only whitelisted Minecraft commands can be executed
+
+## Third-Party Addons
+- **The Backrooms Addon+** by hayato807 — stored in `addons/backrooms_addon_plus/` (bp + rp)
+  - Requires Holiday Creator Features experiment (`data_driven_items` in level.dat)
+  - Players noclip into the backrooms when buried by falling sand/gravel
+  - `configure_bds.sh` auto-installs if present in `addons/`
+  - `texturepack-required=true` in server.properties forces resource pack on clients
+  - Source: https://www.curseforge.com/minecraft-bedrock/addons/the-backrooms-addon

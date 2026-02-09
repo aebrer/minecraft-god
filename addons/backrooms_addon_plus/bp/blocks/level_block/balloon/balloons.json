@@ -1,0 +1,25 @@
+{
+	"format_version": "1.21.50",
+	"minecraft:block": {
+		"description": {
+			"identifier": "hh:balloons",
+			"menu_category": {
+				"category": "construction"
+			}
+		},
+		"components": {
+			"minecraft:collision_box": false,
+			"minecraft:selection_box": true,
+			"minecraft:destructible_by_mining": false,
+			"minecraft:destructible_by_explosion": false,
+			"minecraft:geometry": "geometry.balloons",
+			"minecraft:material_instances": {
+				"*": {
+					"texture": "balloons",
+					"render_method": "alpha_test"
+				}
+			},
+			"minecraft:map_color": "#3a3c3d"
+		}
+	}
+}

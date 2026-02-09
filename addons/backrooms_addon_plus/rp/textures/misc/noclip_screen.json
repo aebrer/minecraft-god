@@ -1,0 +1,9 @@
+"image_example": {
+  "type": "image",
+  "anchor_to": "top_right",
+  "anchor_from": "top_right",
+  "offset": [ -20, 20 ],
+  "size": [ 32, 32 ],
+  "texture": "textures/ui/noclip_screen.png",
+  "layer": 1
+}

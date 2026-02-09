@@ -1,0 +1,35 @@
+{
+	"format_version": "1.12.0",
+	"minecraft:geometry": [
+		{
+			"description": {
+				"identifier": "geometry.poolblock",
+				"texture_width": 64,
+				"texture_height": 64,
+				"visible_bounds_width": 2,
+				"visible_bounds_height": 2.5,
+				"visible_bounds_offset": [0, 0.75, 0]
+			},
+			"bones": [
+				{
+					"name": "block",
+					"pivot": [0, 0, 0],
+					"cubes": [
+						{
+							"origin": [-8, 0, -8],
+							"size": [16, 16, 16],
+							"uv": {
+								"north": {"uv": [16, 18], "uv_size": [14, 14]},
+								"east": {"uv": [16, 18], "uv_size": [14, 14]},
+								"south": {"uv": [16, 18], "uv_size": [14, 14]},
+								"west": {"uv": [16, 18], "uv_size": [14, 14]},
+								"up": {"uv": [16, 18], "uv_size": [14, 14]},
+								"down": {"uv": [16, 32], "uv_size": [14, -14]}
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}

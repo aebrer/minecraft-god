@@ -125,6 +125,32 @@ A JavaScript behavior pack using `@minecraft/server` and `@minecraft/server-net`
 
 Also requires `bds/config/default/permissions.json` to include `@minecraft/server-net` in `allowed_modules`.
 
+### Enabling Experiments via level.dat NBT Edit
+
+Bedrock `level.dat` has an 8-byte header (version + length) before the NBT data. Use `nbtlib` (in the project venv) to edit:
+
+```python
+import nbtlib, struct, io
+
+with open('bds/worlds/God World/level.dat', 'rb') as fp:
+    header = fp.read(8)
+    nbt_data = fp.read()
+
+f = nbtlib.File.parse(io.BytesIO(nbt_data), byteorder='little')
+f['experiments']['experiments_ever_used'] = nbtlib.Byte(1)
+f['experiments']['saved_with_toggled_experiments'] = nbtlib.Byte(1)
+f['experiments']['gametest'] = nbtlib.Byte(1)           # Beta APIs
+f['experiments']['data_driven_items'] = nbtlib.Byte(1)  # Holiday Creator Features
+
+buf = io.BytesIO()
+f.write(buf, byteorder='little')
+nbt_bytes = buf.getvalue()
+version = struct.unpack('<I', header[:4])[0]
+with open('bds/worlds/God World/level.dat', 'wb') as fp:
+    fp.write(struct.pack('<II', version, len(nbt_bytes)))
+    fp.write(nbt_bytes)
+```
+
 ## The Python Backend
 
 ### Endpoints
@@ -331,6 +357,11 @@ minecraft-god/
   CLAUDE.md                ← project instructions for Claude Code
   .gitignore
   .env.example             ← ZHIPU_API_KEY=your_key_here
+
+  addons/
+    backrooms_addon_plus/
+      bp/                     ← The Backrooms Addon+ behavior pack
+      rp/                     ← The Backrooms Addon+ resource pack
 
   behavior_pack/
     manifest.json           ← pack manifest (script module + server-net dep)

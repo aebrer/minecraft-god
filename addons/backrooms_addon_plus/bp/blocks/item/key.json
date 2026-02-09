@@ -1,0 +1,25 @@
+{
+	"format_version": "1.21.50",
+	"minecraft:block": {
+		"description": {
+			"identifier": "hh:keys",
+			"menu_category": {
+				"category": "items"
+			}
+		},
+		"components": {
+			"minecraft:collision_box": false,
+			"minecraft:selection_box": false,
+			"minecraft:destructible_by_mining": false,
+			"minecraft:destructible_by_explosion": false,
+			"minecraft:geometry": "geometry.key",
+			"minecraft:material_instances": {
+				"*": {
+					"texture": "key",
+					"render_method": "alpha_test"
+				}
+			},
+			"minecraft:map_color": "#3a3c3d"
+		}
+	}
+}

@@ -1,0 +1,26 @@
+{
+	"format_version": "1.21.50",
+	"minecraft:block": {
+		"description": {
+			"identifier": "hh:iron_37",
+			"menu_category": {
+				"category": "construction"
+			}
+		},
+		"components": {
+			"minecraft:collision_box": true,
+			"minecraft:selection_box": true,
+			"minecraft:destructible_by_mining": false,
+			"minecraft:destructible_by_explosion": false,
+			"minecraft:geometry": "geometry.iron_37",
+			"minecraft:material_instances": {
+				"*": {
+					"texture": "iron_37",
+					"render_method": "alpha_test"
+				}
+			},
+			"minecraft:light_emission": 0,
+			"minecraft:map_color": "#3a3c3d"
+		}
+	}
+}

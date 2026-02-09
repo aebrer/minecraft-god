@@ -1,0 +1,80 @@
+tile.hh:oak_tables.name=table
+tile.hh:chair.name=chair
+tile.hh:air.name=barrier
+tile.hh:block_0.name=level0 block
+tile.hh:block_02.name=level0 block2
+tile.hh:damage_block.name=§4§o§lDamage block
+tile.hh:black.name=§lblack smoke
+tile.hh:clip.name=§1N§2o§3c§4l§5i§6p
+tile.hh:block_1.name=level1 block
+tile.hh:line.name=level1 line
+tile.hh:water.name=water
+tile.hh:door_1.name=elevator door
+tile.hh:light_1.name=level1 light
+tile.hh:pipe.name=pipe
+tile.hh:block_1_fake.name=fake block
+tile.hh:bolt_wire.name=wire
+tile.hh:officeblock.name=officewool
+tile.hh:white_block.name=white block
+tile.hh:white_block_blend.name=white block2
+tile.hh:office_table_a.name=office table
+tile.hh:office_table_b.name=office table2
+tile.hh:office_chair.name=office chair
+tile.hh:monitor.name=monitor
+tile.hh:desktop.name=desktop
+tile.hh:pool_room_block.name=Pool room block
+tile.hh:level_run_block.name=Level run red block
+tile.hh:level_run_block2.name=Level run red block2
+tile.hh:run_block.name=Level run block
+tile.hh:run_door.name=Level run door
+tile.hh:run_door2.name=Level run door2
+tile.hh:clip2.name=clip2
+tile.hh:clip3.name=clip3
+tile.hh:entity_spawn_block.name=entity spawn block
+tile.hh:entity_spawn_block2.name=entity spawn block2
+tile.hh:fun_block.name=Level fun block
+tile.hh:fun_table_b.name=Level fun table2
+tile.hh:fun_table_a.name=Level fun table
+tile.hh:clip4.name=noclip4
+tile.hh:block_03.name=level0 block3
+tile.hh:iron_37.name=Iron bars
+tile.hh:keys.name=§gKey
+tile.hh:green_door.name=green door
+tile.hh:green_door2.name=green door2
+tile.hh:neon_door.name=neon door
+tile.hh:neon_door2.name=neon door2
+tile.hh:clip5.name=noclip5
+tile.hh:box.name=card box
+tile.hh:clip6.name=noclip6
+tile.hh:rainbow_block.name=Rainbow block
+tile.hh:arcade.name=arcade
+tile.hh:light.name=Light
+tile.hh:balloon_red.name=balloon[red]
+tile.hh:balloons.name=wire
+
+item.spawn_egg.entity.hh:entity_0.name=Spawn Bacteria
+item.spawn_egg.entity.hh:smiler.name=Spawn Smiler
+item.spawn_egg.entity.hh:entity_fun.name=Spawn Partygoer
+item.spawn_egg.entity.hh:entity_4.name=Spawn level4 creature
+item.spawn_egg.entity.hh:entity_3.name=Spawn Skin-Stealer
+item.spawn_egg.entity.hh:steve_skin.name=Spawn steve[Skin-Stealer]
+item.spawn_egg.entity.hh:entity_5.name=Spawn level37 creature
+item.spawn_egg.entity.hh:steve.name=Spawn steve
+item.spawn_egg.entity.hh:wormlings.name=Spawn Wormlings
+
+tile.hh:0_image.name=Image
+tile.hh:0_image2.name=Image2
+
+item.hh:key=§gKey
+
+
+
+
+
+
+
+
+
+
+
+

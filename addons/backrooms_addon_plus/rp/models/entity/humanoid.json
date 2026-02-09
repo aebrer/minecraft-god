@@ -1,0 +1,96 @@
+{
+	"format_version": "1.12.0",
+	"minecraft:geometry": [
+		{
+			"description": {
+				"identifier": "geometry.humanoid",
+				"texture_width": 64,
+				"texture_height": 64,
+				"visible_bounds_width": 3,
+				"visible_bounds_height": 4,
+				"visible_bounds_offset": [0, 1, 0]
+			},
+			"bones": [
+				{
+					"name": "humanoid",
+					"pivot": [0, 0, 0]
+				},
+				{
+					"name": "RightLeg",
+					"parent": "humanoid",
+					"pivot": [-1.9, 12, 0],
+					"cubes": [
+						{"origin": [-4.1, 0, -2], "size": [4, 12, 4], "uv": [0, 16]},
+						{"origin": [-4.35, -0.25, -2.25], "size": [4.5, 12.25, 4.5], "uv": [0, 32]}
+					]
+				},
+				{
+					"name": "Body",
+					"parent": "humanoid",
+					"pivot": [0, 12, 0],
+					"cubes": [
+						{"origin": [-4.1, 12, -2], "size": [8, 12, 4], "uv": [16, 16]},
+						{"origin": [-4.35, 11.75, -2.25], "size": [8.5, 12.5, 4.5], "uv": [16, 32]}
+					]
+				},
+				{
+					"name": "LeftArm",
+					"parent": "Body",
+					"pivot": [5, 22, 0],
+					"cubes": [
+						{"origin": [3.9, 12, -2], "size": [4, 12, 4], "uv": [32, 48]},
+						{"origin": [3.65, 11.75, -2.25], "size": [4.5, 12.5, 4.5], "uv": [48, 48]}
+					]
+				},
+				{
+					"name": "offhand",
+					"parent": "LeftArm",
+					"pivot": [6, 12, 0]
+				},
+				{
+					"name": "RightArm",
+					"parent": "Body",
+					"pivot": [-5, 22, 0],
+					"cubes": [
+						{"origin": [-8.1, 12, -2], "size": [4, 12, 4], "uv": [40, 16]},
+						{"origin": [-8.35, 11.75, -2.25], "size": [4.5, 12.5, 4.5], "uv": [40, 32]}
+					]
+				},
+				{
+					"name": "mainhand",
+					"parent": "RightArm",
+					"pivot": [-6, 12, 0]
+				},
+				{
+					"name": "Head",
+					"parent": "Body",
+					"pivot": [0, 24, 0],
+					"cubes": [
+						{"origin": [-4, 24, -4], "size": [8, 8, 8], "uv": [0, 0]},
+						{
+							"origin": [-4.25, 23.75, -4.25],
+							"size": [8.5, 8.5, 8.5],
+							"uv": {
+								"north": {"uv": [40, 8], "uv_size": [8, 8]},
+								"east": {"uv": [32, 8], "uv_size": [8, 8]},
+								"south": {"uv": [56, 8], "uv_size": [8, 8]},
+								"west": {"uv": [48, 8], "uv_size": [8, 8]},
+								"up": {"uv": [40, 0], "uv_size": [8, 8]},
+								"down": {"uv": [48, 8], "uv_size": [8, -8]}
+							}
+						}
+					]
+				},
+				{
+					"name": "LeftLeg",
+					"parent": "humanoid",
+					"pivot": [1.9, 12, 0],
+					"cubes": [
+						{"origin": [-0.1, 0, -2], "size": [4, 12, 4], "uv": [16, 48]},
+						{"origin": [-0.35, -0.25, -2.25], "size": [4.5, 12.25, 4.5], "uv": [0, 48]}
+					]
+				}
+			]
+		}
+	]
+}
