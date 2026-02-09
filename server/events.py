@@ -137,13 +137,8 @@ class EventBuffer:
         weather = [e for e in events if e.get("type") == "weather_change"]
         if weather:
             latest = weather[-1]
-            if latest.get("lightning"):
-                desc = "thunderstorm"
-            elif latest.get("raining"):
-                desc = "rain"
-            else:
-                desc = "clear"
-            sections.append(f"WEATHER: Changed to {desc}")
+            new_weather = latest.get("newWeather", "Clear")
+            sections.append(f"WEATHER: Changed to {new_weather}")
 
         if not sections:
             return None
