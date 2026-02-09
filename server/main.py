@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN
+from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
@@ -63,14 +63,16 @@ async def receive_event(event: GameEvent):
     event_data = event.model_dump()
     event_buffer.add(event_data)
 
-    # Prayer fast-path: if chat contains prayer keywords, trigger immediate tick
-    if event_data.get("type") == "chat" and event_buffer.has_prayer():
-        global last_prayer_time
-        now = time.time()
-        if now - last_prayer_time >= PRAYER_COOLDOWN:
-            last_prayer_time = now
-            logger.info("Prayer detected — triggering immediate god tick")
-            asyncio.create_task(_god_tick())
+    # Prayer fast-path: if this chat contains prayer keywords, trigger immediate tick
+    if event_data.get("type") == "chat":
+        message = event_data.get("message", "").lower()
+        if any(kw in message for kw in PRAYER_KEYWORDS):
+            global last_prayer_time
+            now = time.time()
+            if now - last_prayer_time >= PRAYER_COOLDOWN:
+                last_prayer_time = now
+                logger.info("Prayer detected — triggering immediate god tick")
+                asyncio.create_task(_god_tick())
 
     return {"status": "ok"}
 

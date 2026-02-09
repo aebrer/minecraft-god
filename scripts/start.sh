@@ -33,7 +33,7 @@ fi
 # Start the Python backend
 echo "Starting Python backend..."
 source "$PROJECT_DIR/venv/bin/activate"
-nohup uvicorn server.main:app --host 0.0.0.0 --port 8000 \
+nohup uvicorn server.main:app --host 127.0.0.1 --port 8000 \
     > "$LOG_DIR/backend.log" 2>&1 &
 echo $! > "$PROJECT_DIR/.backend.pid"
 echo "  Backend started (PID: $(cat "$PROJECT_DIR/.backend.pid"))"

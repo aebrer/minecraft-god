@@ -26,7 +26,7 @@ DEEP_GOD_NIGHT_UNDERGROUND_CHANCE = 0.15  # chance when night + below Y=30
 DEEP_GOD_RANDOM_CHANCE = 0.05  # base random chance per tick when below Y=30
 
 # Server
-BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
+BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 
 # Prayer keywords that trigger immediate Kind God response

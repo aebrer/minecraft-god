@@ -5,14 +5,27 @@ All commands go through an allowlist. If something isn't in the list, it gets dr
 
 import json
 import logging
+import re
 
 logger = logging.getLogger("minecraft-god")
 
 # Allowlisted command prefixes — anything not starting with one of these is dropped
 ALLOWED_COMMANDS = {
     "summon", "title", "say", "weather", "effect", "tp", "teleport",
-    "give", "clear", "playsound", "time", "difficulty", "gamerule",
+    "give", "clear", "playsound", "time", "difficulty",
 }
+
+# Dangerous items that must never be given to players
+BLOCKED_ITEMS = {
+    "command_block", "repeating_command_block", "chain_command_block",
+    "command_block_minecart", "barrier", "structure_block", "structure_void",
+    "light", "allow", "deny", "border_block", "jigsaw",
+    "bedrock", "end_portal_frame", "end_portal",
+}
+
+# Valid target selectors — only @a (all players) and @s (self) are allowed
+# @e (all entities) and @r (random) are too broad
+ALLOWED_SELECTORS = {"@a", "@s", "@p"}
 
 # Valid mob types the gods can summon
 VALID_MOBS = {
@@ -100,6 +113,22 @@ def _translate_one(tool_call) -> dict | list[dict] | None:
         return None
 
 
+# Regex for valid player names (Xbox gamertags: alphanumeric + spaces, 1-15 chars)
+_PLAYER_NAME_RE = re.compile(r"^[a-zA-Z0-9_ ]{1,32}$")
+# Regex for valid coordinates (numbers, ~, ^, -, .)
+_COORD_RE = re.compile(r"^[~^0-9. -]+$")
+
+
+def _validate_player_target(target: str) -> bool:
+    """Validate a player name or target selector."""
+    if target in ALLOWED_SELECTORS:
+        return True
+    if _PLAYER_NAME_RE.match(target):
+        return True
+    logger.warning(f"Blocked invalid player target: {target}")
+    return False
+
+
 def _validate_command(cmd_str: str) -> bool:
     """Check that a command starts with an allowed prefix."""
     first_word = cmd_str.strip().split()[0].lower()
@@ -125,10 +154,14 @@ def _send_message(args: dict) -> dict | list[dict] | None:
     if style == "title":
         rawtext = json.dumps({"rawtext": [{"text": message}]})
         selector = target if target else "@a"
+        if not _validate_player_target(selector):
+            return None
         return _cmd(f"title {selector} title {rawtext}")
     elif style == "actionbar":
         rawtext = json.dumps({"rawtext": [{"text": message}]})
         selector = target if target else "@a"
+        if not _validate_player_target(selector):
+            return None
         return _cmd(f"title {selector} actionbar {rawtext}")
     else:
         # Chat style — use /say (broadcasts as [Server])
@@ -163,6 +196,8 @@ def _change_weather(args: dict) -> dict | None:
 
 def _give_effect(args: dict) -> dict | None:
     target = args.get("target_player", "@a")
+    if not _validate_player_target(target):
+        return None
     effect = args.get("effect", "").lower()
     if effect not in VALID_EFFECTS:
         logger.warning(f"Blocked invalid effect: {effect}")
@@ -182,13 +217,20 @@ def _set_time(args: dict) -> dict | None:
 
 def _give_item(args: dict) -> dict | None:
     player = args.get("player", "@a")
+    if not _validate_player_target(player):
+        return None
     item = args.get("item", "").lower().replace("minecraft:", "")
+    if item in BLOCKED_ITEMS:
+        logger.warning(f"Blocked dangerous item: {item}")
+        return None
     count = min(max(args.get("count", 1), 1), 64)
     return _cmd(f"give {player} {item} {count}")
 
 
 def _clear_item(args: dict) -> dict | None:
     player = args.get("player", "@a")
+    if not _validate_player_target(player):
+        return None
     item = args.get("item", "")
     if item:
         item = item.lower().replace("minecraft:", "")
@@ -218,6 +260,8 @@ def _set_difficulty(args: dict) -> dict | None:
 
 def _teleport_player(args: dict) -> dict | None:
     player = args.get("player", "")
+    if not _validate_player_target(player):
+        return None
     x = args.get("x", 0)
     y = args.get("y", 64)
     z = args.get("z", 0)

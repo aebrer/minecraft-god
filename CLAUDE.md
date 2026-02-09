@@ -49,7 +49,7 @@ scripts/
 
 # Or manually:
 source venv/bin/activate
-uvicorn server.main:app --host 0.0.0.0 --port 8000  # terminal 1
+uvicorn server.main:app --host 127.0.0.1 --port 8000  # terminal 1
 cd bds && LD_LIBRARY_PATH=. ./bedrock_server          # terminal 2
 
 # Debug
