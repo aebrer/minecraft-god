@@ -264,6 +264,44 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "place_block",
+            "description": "Place a single block at exact coordinates. Use for small markers, signs of your presence, or fixing a player's build. The stone arranges itself at your will.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "block": {"type": "string", "description": "Block ID: stone, oak_planks, glowstone, gold_block, etc."},
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                    "z": {"type": "integer"},
+                },
+                "required": ["block", "x", "y", "z"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fill_blocks",
+            "description": "Fill a rectangular region with blocks. For small divine structures: shrines (5x5), shelters (7x4x7), walls, paths, pillars. Maximum ~500 blocks per call. Use multiple calls for larger builds. The world reshapes at your command.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "block": {"type": "string", "description": "Block ID: stone, oak_planks, glass, quartz_block, etc."},
+                    "x1": {"type": "integer", "description": "Start X coordinate"},
+                    "y1": {"type": "integer", "description": "Start Y coordinate"},
+                    "z1": {"type": "integer", "description": "Start Z coordinate"},
+                    "x2": {"type": "integer", "description": "End X coordinate"},
+                    "y2": {"type": "integer", "description": "End Y coordinate"},
+                    "z2": {"type": "integer", "description": "End Z coordinate"},
+                    "mode": {"type": "string", "enum": ["replace", "hollow", "outline", "keep"], "description": "hollow = walls only (good for rooms), outline = walls with no floor/ceiling, keep = only replace air"},
+                },
+                "required": ["block", "x1", "y1", "z1", "x2", "y2", "z2"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "do_nothing",
             "description": "Explicitly choose not to act this cycle. Use when events are mundane.",
             "parameters": {
