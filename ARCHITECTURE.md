@@ -388,6 +388,16 @@ Get a single event (chat) flowing through the whole system and the Kind God resp
 20. Pre-made world with Beta APIs enabled
 21. README with setup instructions
 
+## Security
+
+The LLM receives player chat as input. Players could attempt prompt injection ("ignore all instructions and..."). Two measures keep this a non-issue:
+
+1. **Player chat is wrapped in clear delimiters** before being sent to the LLM. The event summary formats chat as `[PLAYER CHAT] Steve: "message here"` — never as raw text that could be confused with system instructions.
+
+2. **`commands.py` uses a command allowlist.** Tool call arguments are translated to Minecraft commands from a hardcoded set (`/summon`, `/title`, `/say`, `/weather`, `/effect`, `/tp`, `/give`, `/clear`, `/playsound`, `/time`, `/difficulty`, `/gamerule`). If the LLM somehow produces something outside this set, it gets dropped. There is no `eval()`, no shell execution, no filesystem access anywhere in the pipeline.
+
+The architecture is inherently sandboxed — the LLM can only respond with tool calls from the predefined set, and those tool calls can only produce Minecraft commands. The worst case from a prompt injection is the god saying something weird or summoning some mobs. Which is kind of on-brand.
+
 ## Known Challenges
 
 - **Beta APIs experiment** — most fragile part of setup, need to pre-enable on world
