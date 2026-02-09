@@ -81,22 +81,26 @@ world.afterEvents.playerSpawn.subscribe((event) => {
 
 // Entity death — player deaths and notable mob kills
 world.afterEvents.entityDie.subscribe((event) => {
-    const entity = event.deadEntity;
-    const source = event.damageSource;
+    try {
+        const entity = event.deadEntity;
+        const source = event.damageSource;
 
-    sendEvent("entity_die", {
-        entity: entity.typeId,
-        entityName: entity.nameTag || entity.typeId,
-        isPlayer: entity.typeId === "minecraft:player",
-        playerName:
-            entity.typeId === "minecraft:player" ? entity.name : null,
-        cause: source.cause,
-        damagingEntity: source.damagingEntity
-            ? source.damagingEntity.typeId
-            : null,
-        location: vecToObj(entity.location),
-        dimension: entity.dimension.id,
-    });
+        sendEvent("entity_die", {
+            entity: entity.typeId,
+            entityName: entity.nameTag || entity.typeId,
+            isPlayer: entity.typeId === "minecraft:player",
+            playerName:
+                entity.typeId === "minecraft:player" ? entity.name : null,
+            cause: source.cause,
+            damagingEntity: source.damagingEntity
+                ? source.damagingEntity.typeId
+                : null,
+            location: vecToObj(entity.location),
+            dimension: entity.dimension.id,
+        });
+    } catch {
+        // Entity may have already been removed from the world
+    }
 });
 
 // Block break — important for Deep God triggers (Y level, ore type)
@@ -154,9 +158,9 @@ world.afterEvents.entityHurt.subscribe((event) => {
 // Weather changes
 world.afterEvents.weatherChange.subscribe((event) => {
     sendEvent("weather_change", {
-        lightning: event.lightning,
-        raining: event.raining,
-        dimension: event.dimension.id,
+        newWeather: event.newWeather,
+        previousWeather: event.previousWeather,
+        dimension: event.dimension, // already a string, not a Dimension object
     });
 });
 
