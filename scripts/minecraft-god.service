@@ -1,0 +1,15 @@
+[Unit]
+Description=Minecraft God Server (BDS + LLM Backend)
+After=network.target
+
+[Service]
+Type=forking
+User=%i
+WorkingDirectory=/path/to/minecraft-god
+ExecStart=/path/to/minecraft-god/scripts/start.sh
+ExecStop=/path/to/minecraft-god/scripts/stop.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
