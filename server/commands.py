@@ -1,0 +1,299 @@
+"""Translate LLM tool calls into Minecraft commands.
+
+All commands go through an allowlist. If something isn't in the list, it gets dropped.
+"""
+
+import json
+import logging
+import re
+
+logger = logging.getLogger("minecraft-god")
+
+# Allowlisted command prefixes — anything not starting with one of these is dropped
+ALLOWED_COMMANDS = {
+    "summon", "title", "say", "weather", "effect", "tp", "teleport",
+    "give", "clear", "playsound", "time", "difficulty",
+}
+
+# Dangerous items that must never be given to players
+BLOCKED_ITEMS = {
+    "command_block", "repeating_command_block", "chain_command_block",
+    "command_block_minecart", "barrier", "structure_block", "structure_void",
+    "light", "allow", "deny", "border_block", "jigsaw",
+    "bedrock", "end_portal_frame", "end_portal",
+}
+
+# Valid target selectors — only @a (all players) and @s (self) are allowed
+# @e (all entities) and @r (random) are too broad
+ALLOWED_SELECTORS = {"@a", "@s", "@p"}
+
+# Valid mob types the gods can summon
+VALID_MOBS = {
+    # Hostile
+    "zombie", "skeleton", "creeper", "spider", "cave_spider", "silverfish",
+    "enderman", "witch", "phantom", "slime", "magma_cube", "blaze",
+    "wither_skeleton", "piglin_brute", "hoglin", "ghast",
+    # Neutral
+    "wolf", "iron_golem", "bee", "piglin", "enderman",
+    # Passive
+    "cow", "sheep", "pig", "chicken", "rabbit", "horse", "cat", "fox",
+    "axolotl", "frog", "turtle",
+    # Special
+    "lightning_bolt", "villager", "wandering_trader",
+}
+
+# Valid status effects
+VALID_EFFECTS = {
+    "speed", "slowness", "haste", "mining_fatigue", "strength",
+    "instant_health", "instant_damage", "jump_boost", "nausea",
+    "regeneration", "resistance", "fire_resistance", "water_breathing",
+    "invisibility", "blindness", "night_vision", "hunger", "weakness",
+    "poison", "levitation", "slow_falling", "darkness", "absorption",
+    "saturation", "glowing",
+}
+
+
+def translate_tool_calls(tool_calls: list) -> list[dict]:
+    """Convert LLM tool calls into a list of command dicts.
+
+    Each command dict has:
+        - "command": the Minecraft command string (without leading /)
+        - "target_player": optional player name for relative commands
+    """
+    commands = []
+    for tc in tool_calls:
+        try:
+            result = _translate_one(tc)
+            if result is None:
+                continue
+            if isinstance(result, list):
+                commands.extend(result)
+            else:
+                commands.append(result)
+        except Exception:
+            logger.exception(f"Failed to translate tool call: {tc.function.name}")
+    return commands
+
+
+def _translate_one(tool_call) -> dict | list[dict] | None:
+    name = tool_call.function.name
+    args = json.loads(tool_call.function.arguments)
+
+    if name == "do_nothing":
+        reason = args.get("reason", "no reason given")
+        logger.info(f"God chose to do nothing: {reason}")
+        return None
+
+    if name == "send_message":
+        return _send_message(args)
+    elif name == "summon_mob":
+        return _summon_mob(args)
+    elif name == "change_weather":
+        return _change_weather(args)
+    elif name == "give_effect":
+        return _give_effect(args)
+    elif name == "set_time":
+        return _set_time(args)
+    elif name == "give_item":
+        return _give_item(args)
+    elif name == "clear_item":
+        return _clear_item(args)
+    elif name == "strike_lightning":
+        return _strike_lightning(args)
+    elif name == "play_sound":
+        return _play_sound(args)
+    elif name == "set_difficulty":
+        return _set_difficulty(args)
+    elif name == "teleport_player":
+        return _teleport_player(args)
+    elif name == "assign_mission":
+        return _assign_mission(args)
+    else:
+        logger.warning(f"Unknown tool call: {name}")
+        return None
+
+
+# Regex for valid player names (Xbox gamertags: alphanumeric + spaces, 1-15 chars)
+_PLAYER_NAME_RE = re.compile(r"^[a-zA-Z0-9_ ]{1,32}$")
+# Regex for valid coordinates (numbers, ~, ^, -, .)
+_COORD_RE = re.compile(r"^[~^0-9. -]+$")
+
+
+def _validate_player_target(target: str) -> bool:
+    """Validate a player name or target selector."""
+    if target in ALLOWED_SELECTORS:
+        return True
+    if _PLAYER_NAME_RE.match(target):
+        return True
+    logger.warning(f"Blocked invalid player target: {target}")
+    return False
+
+
+def _validate_command(cmd_str: str) -> bool:
+    """Check that a command starts with an allowed prefix."""
+    first_word = cmd_str.strip().split()[0].lower()
+    return first_word in ALLOWED_COMMANDS
+
+
+def _cmd(command: str, target_player: str | None = None) -> dict | None:
+    """Create a validated command dict."""
+    if not _validate_command(command):
+        logger.warning(f"Blocked disallowed command: {command}")
+        return None
+    return {"command": command, "target_player": target_player}
+
+
+def _send_message(args: dict) -> dict | list[dict] | None:
+    message = args.get("message", "")
+    style = args.get("style", "chat")
+    target = args.get("target_player")
+
+    # Sanitize message — no newlines, cap length
+    message = message.replace("\n", " ").strip()[:200]
+
+    if style == "title":
+        rawtext = json.dumps({"rawtext": [{"text": message}]})
+        selector = target if target else "@a"
+        if not _validate_player_target(selector):
+            return None
+        return _cmd(f"title {selector} title {rawtext}")
+    elif style == "actionbar":
+        rawtext = json.dumps({"rawtext": [{"text": message}]})
+        selector = target if target else "@a"
+        if not _validate_player_target(selector):
+            return None
+        return _cmd(f"title {selector} actionbar {rawtext}")
+    else:
+        # Chat style — use /say (broadcasts as [Server])
+        return _cmd(f"say {message}")
+
+
+def _summon_mob(args: dict) -> list[dict] | None:
+    mob_type = args.get("mob_type", "").lower().replace("minecraft:", "")
+    if mob_type not in VALID_MOBS:
+        logger.warning(f"Blocked invalid mob type: {mob_type}")
+        return None
+
+    near_player = args.get("near_player")
+    location = args.get("location", "~ ~ ~")
+    count = min(max(args.get("count", 1), 1), 5)  # clamp 1-5
+
+    commands = []
+    for _ in range(count):
+        cmd = _cmd(f"summon {mob_type} {location}", target_player=near_player)
+        if cmd:
+            commands.append(cmd)
+    return commands
+
+
+def _change_weather(args: dict) -> dict | None:
+    weather = args.get("weather_type", "clear").lower()
+    if weather not in ("clear", "rain", "thunder"):
+        return None
+    duration = min(max(args.get("duration", 6000), 1), 24000)
+    return _cmd(f"weather {weather} {duration}")
+
+
+def _give_effect(args: dict) -> dict | None:
+    target = args.get("target_player", "@a")
+    if not _validate_player_target(target):
+        return None
+    effect = args.get("effect", "").lower()
+    if effect not in VALID_EFFECTS:
+        logger.warning(f"Blocked invalid effect: {effect}")
+        return None
+    duration = min(max(args.get("duration", 30), 1), 120)
+    amplifier = min(max(args.get("amplifier", 0), 0), 3)
+    return _cmd(f"effect {target} {effect} {duration} {amplifier}")
+
+
+def _set_time(args: dict) -> dict | None:
+    time_val = args.get("time", "day").lower()
+    valid_times = {"day", "noon", "sunset", "night", "midnight", "sunrise"}
+    if time_val not in valid_times:
+        return None
+    return _cmd(f"time set {time_val}")
+
+
+def _give_item(args: dict) -> dict | None:
+    player = args.get("player", "@a")
+    if not _validate_player_target(player):
+        return None
+    item = args.get("item", "").lower().replace("minecraft:", "")
+    if item in BLOCKED_ITEMS:
+        logger.warning(f"Blocked dangerous item: {item}")
+        return None
+    count = min(max(args.get("count", 1), 1), 64)
+    return _cmd(f"give {player} {item} {count}")
+
+
+def _clear_item(args: dict) -> dict | None:
+    player = args.get("player", "@a")
+    if not _validate_player_target(player):
+        return None
+    item = args.get("item", "")
+    if item:
+        item = item.lower().replace("minecraft:", "")
+        return _cmd(f"clear {player} {item}")
+    else:
+        return _cmd(f"clear {player}")
+
+
+def _strike_lightning(args: dict) -> dict | None:
+    near_player = args.get("near_player")
+    offset = args.get("offset", "~ ~ ~")
+    return _cmd(f"summon lightning_bolt {offset}", target_player=near_player)
+
+
+def _play_sound(args: dict) -> dict | None:
+    sound = args.get("sound", "")
+    target = args.get("target_player", "@a")
+    return _cmd(f"playsound {sound} {target}")
+
+
+def _set_difficulty(args: dict) -> dict | None:
+    difficulty = args.get("difficulty", "normal").lower()
+    if difficulty not in ("peaceful", "easy", "normal", "hard"):
+        return None
+    return _cmd(f"difficulty {difficulty}")
+
+
+def _teleport_player(args: dict) -> dict | None:
+    player = args.get("player", "")
+    if not _validate_player_target(player):
+        return None
+    x = args.get("x", 0)
+    y = args.get("y", 64)
+    z = args.get("z", 0)
+    return _cmd(f"tp {player} {x} {y} {z}")
+
+
+def _assign_mission(args: dict) -> list[dict]:
+    """Send a mission as title + subtitle + chat message."""
+    player = args.get("player", "@a")
+    title = args.get("mission_title", "A Task")
+    description = args.get("mission_description", "")
+    reward_hint = args.get("reward_hint", "")
+
+    commands = []
+
+    # Title
+    rawtext_title = json.dumps({"rawtext": [{"text": title}]})
+    cmd = _cmd(f"title {player} title {rawtext_title}")
+    if cmd:
+        commands.append(cmd)
+
+    # Subtitle
+    if description:
+        rawtext_sub = json.dumps({"rawtext": [{"text": description[:100]}]})
+        cmd = _cmd(f"title {player} subtitle {rawtext_sub}")
+        if cmd:
+            commands.append(cmd)
+
+    # Chat hint about reward
+    if reward_hint:
+        cmd = _cmd(f"say Mission for {player}: {reward_hint}")
+        if cmd:
+            commands.append(cmd)
+
+    return commands
