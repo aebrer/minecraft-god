@@ -19,5 +19,8 @@ logs/
 # World data (large, generated)
 worlds/
 
+# Backups
+backups/
+
 # OS
 .DS_Store
