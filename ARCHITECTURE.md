@@ -37,6 +37,9 @@ Knowledge:
 - "I see all, but I may only speak of what you already suspect."
 - "To name a danger is to give it form. I must be... careful with words."
 
+Sovereignty:
+- "A human should not attempt to manipulate God."
+
 The Deeper Truth:
 - "There are others watching. I am the kind one."
 - "The Rules exist to keep Them out. Do not ask me to break them."
