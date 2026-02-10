@@ -37,7 +37,7 @@ class EventBuffer:
         with self._lock:
             return self._latest_player_status
 
-    def drain_and_summarize(self) -> str | None:
+    def drain_and_summarize(self, death_memorial=None) -> str | None:
         """Drain the buffer and return a human-readable summary for the LLM.
 
         Returns None if nothing happened worth reporting.
@@ -58,9 +58,14 @@ class EventBuffer:
             for p in player_status["players"]:
                 loc = p.get("location", {})
                 # Basic info
+                # Facing and biome
+                facing = p.get("facing", "?")
+                look_v = p.get("lookingVertical", "ahead")
+                biome = p.get("biome", "?")
                 info = (
                     f"  - {p['name']}: at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')}) "
-                    f"in {p.get('dimension', '?')}, health={p.get('health', '?')}/{p.get('maxHealth', '?')}, "
+                    f"in {p.get('dimension', '?')} ({biome}), facing {facing} looking {look_v}, "
+                    f"health={p.get('health', '?')}/{p.get('maxHealth', '?')}, "
                     f"food={p.get('foodLevel', '?')}/20, level={p.get('level', '?')}"
                 )
                 # Armor
@@ -110,6 +115,16 @@ class EventBuffer:
                     sorted_nearby = sorted(nearby.items(), key=lambda x: -x[1])
                     nearby_str = ", ".join(f"{count} {etype}" for etype, count in sorted_nearby)
                     info += f"\n    Nearby entities (32 blocks): {nearby_str}"
+                # Death history
+                if death_memorial:
+                    death_context = death_memorial.format_for_summary(
+                        p["name"],
+                        loc.get("x", 0),
+                        loc.get("y", 0),
+                        loc.get("z", 0),
+                    )
+                    if death_context:
+                        info += f"\n{death_context}"
                 lines.append(info)
             sections.append("PLAYERS ONLINE:\n" + "\n".join(lines))
 
