@@ -7,6 +7,7 @@ toward defeating the Ender Dragon.
 
 import logging
 import random
+import time
 
 from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE
 from server.llm import client
@@ -103,13 +104,21 @@ TOOLS = [
 ]
 
 
+HERALD_COOLDOWN = 60  # seconds between Herald messages
+
+
 class HeraldGod:
     def __init__(self):
         self.conversation_history: list[dict] = []
+        self._last_spoke: float = 0
 
     def should_act(self, event_summary: str | None) -> bool:
         """Determine whether the Herald should speak this cycle."""
         if not event_summary:
+            return False
+
+        # Cooldown — don't speak again too soon
+        if time.time() - self._last_spoke < HERALD_COOLDOWN:
             return False
 
         summary_lower = event_summary.lower()
@@ -196,6 +205,7 @@ class HeraldGod:
                 tc for tc in tool_calls if tc.function.name != "do_nothing"
             ]
             if real_actions:
+                self._last_spoke = time.time()
                 logger.info(f"Herald spoke ({len(real_actions)} messages)")
 
         return commands

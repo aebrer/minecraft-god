@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
+from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS, HERALD_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
@@ -32,6 +32,7 @@ deep_god = DeepGod()
 herald_god = HeraldGod()
 last_prayer_time: float = 0
 _tick_task: asyncio.Task | None = None
+_tick_lock = asyncio.Lock()
 _ticks_since_consolidation: int = 0
 
 
@@ -69,16 +70,23 @@ async def receive_event(event: GameEvent):
     event_data = event.model_dump()
     event_buffer.add(event_data)
 
-    # Prayer fast-path: if this chat contains prayer keywords, trigger immediate tick
+    # Fast-path: if this chat contains prayer or herald keywords, trigger immediate tick
     if event_data.get("type") == "chat":
         message = event_data.get("message", "").lower()
-        if any(kw in message for kw in PRAYER_KEYWORDS):
+        is_prayer = any(kw in message for kw in PRAYER_KEYWORDS)
+        is_herald = any(kw in message for kw in HERALD_KEYWORDS)
+        if is_prayer or is_herald:
             global last_prayer_time
             now = time.time()
             if now - last_prayer_time >= PRAYER_COOLDOWN:
                 last_prayer_time = now
-                logger.info("Prayer detected — triggering immediate god tick")
-                asyncio.create_task(_god_tick())
+                if is_herald and not is_prayer:
+                    # Herald-only — skip Kind God, just run Herald
+                    logger.info("Herald invoked — triggering Herald-only tick")
+                    asyncio.create_task(_herald_only_tick())
+                else:
+                    logger.info("Prayer detected — triggering immediate god tick")
+                    asyncio.create_task(_god_tick())
 
     return {"status": "ok"}
 
@@ -109,6 +117,26 @@ async def get_status():
     }
 
 
+async def _herald_only_tick():
+    """Run just the Herald, skipping the Kind/Deep God. Used when chat is directed at the Herald."""
+    global command_queue
+
+    if _tick_lock.locked():
+        return
+
+    async with _tick_lock:
+        event_summary = event_buffer.drain_and_summarize()
+        if not event_summary:
+            return
+
+        if herald_god.should_act(event_summary):
+            logger.info("=== THE HERALD SPEAKS ===")
+            herald_commands = await herald_god.think(event_summary)
+            if herald_commands:
+                command_queue.extend(herald_commands)
+                logger.info(f"Queued {len(herald_commands)} Herald commands")
+
+
 async def _god_tick_loop():
     """Background loop that runs the god tick at regular intervals."""
     logger.info(f"God tick loop started (interval: {GOD_TICK_INTERVAL}s)")
@@ -124,6 +152,19 @@ async def _god_tick_loop():
 
 async def _god_tick():
     """Run one cycle of divine deliberation."""
+    global command_queue
+
+    # Prevent concurrent ticks (prayer fast-path vs regular timer)
+    if _tick_lock.locked():
+        logger.debug("Tick already in progress, skipping")
+        return
+
+    async with _tick_lock:
+        await _god_tick_inner()
+
+
+async def _god_tick_inner():
+    """Actual tick logic, called under lock."""
     global command_queue
 
     event_summary = event_buffer.drain_and_summarize()
@@ -157,7 +198,7 @@ async def _god_tick():
             command_queue.extend(herald_commands)
             logger.info(f"Queued {len(herald_commands)} Herald commands")
 
-    # Memory consolidation check
+    # Memory consolidation check (only on full ticks, not herald-only)
     global _ticks_since_consolidation
     _ticks_since_consolidation += 1
     if _ticks_since_consolidation >= MEMORY_CONSOLIDATION_INTERVAL_TICKS:
