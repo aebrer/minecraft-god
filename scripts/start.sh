@@ -1,10 +1,10 @@
 #!/bin/bash
-# Start the Python backend and Bedrock Dedicated Server
+# Start the Python backend and Paper server
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BDS_DIR="$PROJECT_DIR/bds"
+PAPER_DIR="$PROJECT_DIR/paper"
 LOG_DIR="$PROJECT_DIR/logs"
 
 mkdir -p "$LOG_DIR"
@@ -17,9 +17,9 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     exit 1
 fi
 
-# Check for BDS
-if [ ! -f "$BDS_DIR/bedrock_server" ]; then
-    echo "ERROR: BDS not installed. Run install_bds.sh first."
+# Check for Paper
+if [ ! -f "$PAPER_DIR/paper-1.21.11-69.jar" ]; then
+    echo "ERROR: Paper server jar not found in $PAPER_DIR"
     exit 1
 fi
 
@@ -43,19 +43,19 @@ echo "  Log: $LOG_DIR/backend.log"
 # Wait a moment for backend to start
 sleep 2
 
-# Start BDS
-echo "Starting Bedrock Dedicated Server..."
-cd "$BDS_DIR"
-LD_LIBRARY_PATH=. nohup ./bedrock_server \
-    > "$LOG_DIR/bds.log" 2>&1 &
-echo $! > "$PROJECT_DIR/.bds.pid"
+# Start Paper
+echo "Starting Paper server..."
+cd "$PAPER_DIR"
+nohup java -Xms1G -Xmx2G -jar paper-1.21.11-69.jar --nogui \
+    > "$LOG_DIR/paper.log" 2>&1 &
+echo $! > "$PROJECT_DIR/.paper.pid"
 cd "$PROJECT_DIR"
-echo "  BDS started (PID: $(cat "$PROJECT_DIR/.bds.pid"))"
-echo "  Log: $LOG_DIR/bds.log"
+echo "  Paper started (PID: $(cat "$PROJECT_DIR/.paper.pid"))"
+echo "  Log: $LOG_DIR/paper.log"
 
 echo ""
 echo "=== God Is Watching ==="
 echo "Backend: http://localhost:8000/status"
-echo "Minecraft: port 19132 (UDP)"
+echo "Minecraft: port 25565 (TCP)"
 echo ""
 echo "To stop: ./scripts/stop.sh"

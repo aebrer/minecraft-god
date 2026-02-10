@@ -1,5 +1,22 @@
-# Bedrock Dedicated Server (downloaded, not tracked)
+# Bedrock Dedicated Server (legacy, downloaded)
 bds/
+
+# Paper server (runtime files, downloaded jar, world data)
+paper/*.jar
+paper/*.yml
+paper/*.json
+paper/.console_history
+paper/eula.txt
+paper/cache/
+paper/config/
+paper/libraries/
+paper/logs/
+paper/plugins/
+paper/versions/
+paper/world*/
+
+# Plugin build artifacts
+plugin/target/
 
 # Python
 venv/

@@ -1,23 +1,23 @@
 # CLAUDE.md — minecraft-god
 
 ## What This Is
-Bedrock Dedicated Server + two LLM deities watching over players. See ARCHITECTURE.md for full design.
+Paper MC server (Java Edition) + two LLM deities watching over players. See ARCHITECTURE.md for full design.
 
 - **Kind God**: benevolent, bound by Rules, cryptic, afraid of the deep
 - **Deep God**: territorial, ancient, indifferent to humans, dwells in caves/Nether
 
 ## Tech Stack
-- **Behavior Pack**: JavaScript using `@minecraft/server` + `@minecraft/server-net`
+- **Plugin**: Java Paper plugin (`plugin/`) — event listeners, HTTP bridge to backend
 - **Backend**: Python 3.11+, FastAPI, uvicorn
 - **LLM**: GLM-4.7 via z.ai (OpenAI-compatible, use `openai` SDK with custom base_url)
-- **Server**: Bedrock Dedicated Server for Linux
+- **Server**: Paper MC 1.21.11 (Java Edition)
 
 ## Key Architecture
-- Behavior pack POSTs events to `http://localhost:8000/event`
-- Behavior pack polls `GET http://localhost:8000/commands` every 5 seconds
+- Paper plugin POSTs events to `http://localhost:8000/event`
+- Paper plugin polls `GET http://localhost:8000/commands` every 5 seconds
 - Python backend batches events, checks Deep God triggers, routes to correct god
 - LLM responds with tool calls → translated to Minecraft commands via allowlist
-- Commands with `target_player` run via `player.runCommand()`, others via `dimension.runCommand()`
+- Commands executed via `Bukkit.dispatchCommand()` with console sender; relative coords resolved for targeted players
 
 ## File Layout
 ```
@@ -25,63 +25,78 @@ server/
   config.py       - settings from .env
   llm.py          - shared OpenAI client pointed at z.ai
   events.py       - EventBuffer: accumulation + summarization
-  commands.py     - tool call → Minecraft command (with allowlist)
+  commands.py     - tool call → Minecraft command (with allowlist, Java Edition syntax)
   kind_god.py     - Kind God: prompt, tools, conversation history
   deep_god.py     - Deep God: prompt, restricted tools, trigger logic
   main.py         - FastAPI app, endpoints, dual-deity tick loop
 
-behavior_pack/
-  manifest.json   - pack manifest (script module + server-net)
-  scripts/main.js - event listeners, HTTP posting, command polling
+plugin/
+  pom.xml                                    - Maven build file
+  src/main/java/.../MinecraftGodPlugin.java  - event listeners, HTTP client, command polling
+  src/main/resources/plugin.yml              - plugin descriptor
+
+paper/                    - Paper server runtime (not tracked in git)
+  paper-1.21.11-69.jar    - Paper server jar
+  plugins/                - built plugin goes here
+  server.properties       - server config
 
 scripts/
-  install_bds.sh    - download BDS
-  configure_bds.sh  - server.properties, install pack, permissions
-  start.sh          - launch both BDS + backend
+  start.sh          - launch both Paper + backend
   stop.sh           - graceful shutdown
-  minecraft-god.service - systemd unit
 ```
 
 ## Running
 ```bash
-# Quick start (after setup)
-./scripts/start.sh
+# Via systemd (recommended):
+systemctl --user start minecraft-god-backend
+systemctl --user start minecraft-god-paper
 
 # Or manually:
 source venv/bin/activate
 uvicorn server.main:app --host 127.0.0.1 --port 8000  # terminal 1
-cd bds && LD_LIBRARY_PATH=. ./bedrock_server          # terminal 2
+cd paper && java -Xms1G -Xmx2G -jar paper-1.21.11-69.jar --nogui  # terminal 2
+
+# Or via script:
+./scripts/start.sh
 
 # Debug
 curl http://localhost:8000/status
+
+# RCON (requires mcrcon):
+mcrcon -H localhost -p <password> "whitelist list"
+```
+
+## Building the Plugin
+```bash
+cd plugin && mvn package
+cp target/minecraft-god-plugin.jar ../paper/plugins/
 ```
 
 ## Setup from scratch
 ```bash
-./scripts/install_bds.sh      # download BDS
+# Download Paper MC jar to paper/
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 cp .env.example .env          # add ZHIPU_API_KEY
-./scripts/configure_bds.sh    # configure server + install behavior pack
-# Enable Beta APIs experiment on the world (see ARCHITECTURE.md)
-./scripts/start.sh
+echo "eula=true" > paper/eula.txt
+cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
+# Configure paper/server.properties (online-mode, whitelist, RCON, etc.)
+# Start services
 ```
 
 ## HARD RULES
 - **NEVER use sudo.** All operations must run as the current user. No exceptions.
 
 ## Important Notes
-- `@minecraft/server-net` requires Beta APIs experiment enabled on the world
-- `bds/config/default/permissions.json` must include `@minecraft/server-net` in allowed_modules
-- BDS stdout is very limited (only connect/disconnect) — the behavior pack is the real event source
-- The `bds/` directory is not tracked in git (downloaded via install script)
+- The `paper/` directory runtime files are not tracked in git (jar, world data, configs)
+- The `plugin/target/` build artifacts are not tracked in git
 - Never commit `.env` (contains API key)
 - Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM (prompt injection mitigation)
 - `commands.py` enforces a command allowlist — only whitelisted Minecraft commands can be executed
+- Commands use Java Edition syntax: `minecraft:` namespaces, `effect give`, JSON text components
+- RCON is enabled on port 25575 for remote console access
+- Whitelist is enforced — add players with `whitelist add <username>` via RCON or console
 
-## Third-Party Addons
-- **The Backrooms Addon+** by hayato807 — stored in `addons/backrooms_addon_plus/` (bp + rp)
-  - Requires Holiday Creator Features experiment (`data_driven_items` in level.dat)
-  - Players noclip into the backrooms when buried by falling sand/gravel
-  - `configure_bds.sh` auto-installs if present in `addons/`
-  - `texturepack-required=true` in server.properties forces resource pack on clients
-  - Source: https://www.curseforge.com/minecraft-bedrock/addons/the-backrooms-addon
+## Migration from Bedrock
+This project was originally built on Bedrock Dedicated Server with a JavaScript behavior pack.
+Ported to Paper MC (Java Edition) on 2026-02-09. The `behavior_pack/` directory contains
+the legacy Bedrock JS code. The `bds/` directory (not tracked) contained the old BDS installation.

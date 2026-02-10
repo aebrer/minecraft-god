@@ -159,17 +159,17 @@ def _send_message(args: dict) -> dict | list[dict] | None:
     message = message.replace("\n", " ").strip()[:200]
 
     if style == "title":
-        rawtext = json.dumps({"rawtext": [{"text": message}]})
+        text_json = json.dumps({"text": message})
         selector = target if target else "@a"
         if not _validate_player_target(selector):
             return None
-        return _cmd(f"title {selector} title {rawtext}")
+        return _cmd(f"title {selector} title {text_json}")
     elif style == "actionbar":
-        rawtext = json.dumps({"rawtext": [{"text": message}]})
+        text_json = json.dumps({"text": message})
         selector = target if target else "@a"
         if not _validate_player_target(selector):
             return None
-        return _cmd(f"title {selector} actionbar {rawtext}")
+        return _cmd(f"title {selector} actionbar {text_json}")
     else:
         # Chat style — use /say (broadcasts as [Server])
         return _cmd(f"say {message}")
@@ -187,7 +187,7 @@ def _summon_mob(args: dict) -> list[dict] | None:
 
     commands = []
     for _ in range(count):
-        cmd = _cmd(f"summon {mob_type} {location}", target_player=near_player)
+        cmd = _cmd(f"summon minecraft:{mob_type} {location}", target_player=near_player)
         if cmd:
             commands.append(cmd)
     return commands
@@ -211,7 +211,7 @@ def _give_effect(args: dict) -> dict | None:
         return None
     duration = min(max(args.get("duration", 30), 1), 120)
     amplifier = min(max(args.get("amplifier", 0), 0), 3)
-    return _cmd(f"effect {target} {effect} {duration} {amplifier}")
+    return _cmd(f"effect give {target} minecraft:{effect} {duration} {amplifier}")
 
 
 def _set_time(args: dict) -> dict | None:
@@ -231,7 +231,7 @@ def _give_item(args: dict) -> dict | None:
         logger.warning(f"Blocked dangerous item: {item}")
         return None
     count = min(max(args.get("count", 1), 1), 64)
-    return _cmd(f"give {player} {item} {count}")
+    return _cmd(f"give {player} minecraft:{item} {count}")
 
 
 def _clear_item(args: dict) -> dict | None:
@@ -241,7 +241,7 @@ def _clear_item(args: dict) -> dict | None:
     item = args.get("item", "")
     if item:
         item = item.lower().replace("minecraft:", "")
-        return _cmd(f"clear {player} {item}")
+        return _cmd(f"clear {player} minecraft:{item}")
     else:
         return _cmd(f"clear {player}")
 
@@ -249,13 +249,14 @@ def _clear_item(args: dict) -> dict | None:
 def _strike_lightning(args: dict) -> dict | None:
     near_player = args.get("near_player")
     offset = args.get("offset", "~ ~ ~")
-    return _cmd(f"summon lightning_bolt {offset}", target_player=near_player)
+    return _cmd(f"summon minecraft:lightning_bolt {offset}", target_player=near_player)
 
 
 def _play_sound(args: dict) -> dict | None:
     sound = args.get("sound", "")
     target = args.get("target_player", "@a")
-    return _cmd(f"playsound {sound} {target}")
+    sound = sound if sound.startswith("minecraft:") else f"minecraft:{sound}"
+    return _cmd(f"playsound {sound} master {target}")
 
 
 def _set_difficulty(args: dict) -> dict | None:
@@ -285,15 +286,15 @@ def _assign_mission(args: dict) -> list[dict]:
     commands = []
 
     # Title
-    rawtext_title = json.dumps({"rawtext": [{"text": title}]})
-    cmd = _cmd(f"title {player} title {rawtext_title}")
+    title_json = json.dumps({"text": title})
+    cmd = _cmd(f"title {player} title {title_json}")
     if cmd:
         commands.append(cmd)
 
     # Subtitle
     if description:
-        rawtext_sub = json.dumps({"rawtext": [{"text": description[:100]}]})
-        cmd = _cmd(f"title {player} subtitle {rawtext_sub}")
+        sub_json = json.dumps({"text": description[:100]})
+        cmd = _cmd(f"title {player} subtitle {sub_json}")
         if cmd:
             commands.append(cmd)
 
@@ -339,7 +340,7 @@ def _place_block(args: dict) -> dict | None:
     if x is None or y is None or z is None:
         logger.warning(f"Blocked place_block with invalid coordinates: {args}")
         return None
-    return _cmd(f"setblock {x} {y} {z} {block}")
+    return _cmd(f"setblock {x} {y} {z} minecraft:{block}")
 
 
 def _fill_blocks(args: dict) -> dict | None:
@@ -373,4 +374,4 @@ def _fill_blocks(args: dict) -> dict | None:
     if mode not in ("replace", "hollow", "outline", "keep"):
         mode = "replace"
 
-    return _cmd(f"fill {x1} {y1} {z1} {x2} {y2} {z2} {block} {mode}")
+    return _cmd(f"fill {x1} {y1} {z1} {x2} {y2} {z2} minecraft:{block} {mode}")

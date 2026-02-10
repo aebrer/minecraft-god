@@ -1,0 +1,6 @@
+name: MinecraftGod
+version: 1.0.0
+main: ca.entropist.minecraftgod.MinecraftGodPlugin
+api-version: "1.21"
+description: Dual LLM deities watching over your Minecraft server
+author: aebrer
