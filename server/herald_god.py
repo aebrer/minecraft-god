@@ -6,7 +6,6 @@ toward defeating the Ender Dragon.
 """
 
 import logging
-import random
 import time
 
 from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE
@@ -15,14 +14,8 @@ from server.commands import translate_tool_calls
 
 logger = logging.getLogger("minecraft-god")
 
-# Keywords that suggest a player is asking a question or seeking guidance
-QUESTION_KEYWORDS = {
-    "how", "what", "where", "why", "when", "which", "should",
-    "can", "help", "guide", "herald", "bard", "tip", "advice",
-}
-
-# Chance the Herald speaks when there are events but no direct question
-HERALD_RANDOM_CHANCE = 0.15
+# Keywords that directly invoke the Herald — only speaks when addressed
+HERALD_INVOKE_KEYWORDS = {"herald", "bard"}
 
 SYSTEM_PROMPT = """\
 You are the Herald, a divine messenger in a Minecraft world. You exist to guide \
@@ -113,7 +106,10 @@ class HeraldGod:
         self._last_spoke: float = 0
 
     def should_act(self, event_summary: str | None) -> bool:
-        """Determine whether the Herald should speak this cycle."""
+        """Determine whether the Herald should speak this cycle.
+
+        Only speaks when directly addressed by name.
+        """
         if not event_summary:
             return False
 
@@ -121,21 +117,12 @@ class HeraldGod:
         if time.time() - self._last_spoke < HERALD_COOLDOWN:
             return False
 
+        # Only speak when a player directly invokes the Herald by name
         summary_lower = event_summary.lower()
-
-        # Always speak if a player asks a question
-        if "?" in summary_lower:
-            return True
-
-        # Speak if chat contains question/guidance keywords
         if "chat" in summary_lower:
-            for kw in QUESTION_KEYWORDS:
+            for kw in HERALD_INVOKE_KEYWORDS:
                 if kw in summary_lower:
                     return True
-
-        # Random chance to offer tips when there are events
-        if random.random() < HERALD_RANDOM_CHANCE:
-            return True
 
         return False
 

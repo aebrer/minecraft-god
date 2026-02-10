@@ -119,7 +119,7 @@ def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | N
     elif name == "teleport_player":
         return _teleport_player(args)
     elif name == "assign_mission":
-        return _assign_mission(args)
+        return _assign_mission(args, source)
     elif name == "place_block":
         return _place_block(args)
     elif name == "fill_blocks":
@@ -182,14 +182,37 @@ def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | N
     else:
         # Chat style — use tellraw with attributed god name
         god_style = GOD_CHAT_STYLE.get(source, {"name": "God", "color": "white"})
-        selector = target if target else "@a"
-        if target and not _validate_player_target(selector):
+        if target and not _validate_player_target(target):
             return None
-        tellraw_json = json.dumps([
-            {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
-            {"text": message, "color": "white"},
-        ])
-        return _cmd(f"tellraw {selector} {tellraw_json}")
+
+        if target:
+            # Private message — send actual message to target, notification to everyone else
+            # To the target player: "[whispered] <God> message"
+            whisper_json = json.dumps([
+                {"text": "[whispered] ", "color": "gray", "italic": True},
+                {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+                {"text": message, "color": "white"},
+            ])
+            # To everyone else: "<God> *whispers to player*"
+            notify_json = json.dumps([
+                {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+                {"text": f"*whispers to {target}*", "color": "gray", "italic": True},
+            ])
+            cmds = []
+            cmd = _cmd(f"tellraw {target} {whisper_json}")
+            if cmd:
+                cmds.append(cmd)
+            cmd = _cmd(f"tellraw @a[name=!{target}] {notify_json}")
+            if cmd:
+                cmds.append(cmd)
+            return cmds
+        else:
+            # Public message — to everyone
+            tellraw_json = json.dumps([
+                {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+                {"text": message, "color": "white"},
+            ])
+            return _cmd(f"tellraw @a {tellraw_json}")
 
 
 def _summon_mob(args: dict) -> list[dict] | None:
@@ -293,8 +316,8 @@ def _teleport_player(args: dict) -> dict | None:
     return _cmd(f"tp {player} {x} {y} {z}")
 
 
-def _assign_mission(args: dict) -> list[dict]:
-    """Send a mission as title + subtitle + chat message."""
+def _assign_mission(args: dict, source: str = "kind_god") -> list[dict]:
+    """Send a mission as title + subtitle + broadcast chat announcement."""
     player = args.get("player", "@a")
     title = args.get("mission_title", "A Task")
     description = args.get("mission_description", "")
@@ -302,24 +325,34 @@ def _assign_mission(args: dict) -> list[dict]:
 
     commands = []
 
-    # Title
-    title_json = json.dumps({"text": title})
-    cmd = _cmd(f"title {player} title {title_json}")
-    if cmd:
-        commands.append(cmd)
-
-    # Subtitle
+    # Subtitle MUST be set before the title (title triggers the display)
     if description:
         sub_json = json.dumps({"text": description[:100]})
         cmd = _cmd(f"title {player} subtitle {sub_json}")
         if cmd:
             commands.append(cmd)
 
-    # Chat hint about reward
+    # Title — triggers the on-screen display
+    title_json = json.dumps({"text": title})
+    cmd = _cmd(f"title {player} title {title_json}")
+    if cmd:
+        commands.append(cmd)
+
+    # Broadcast quest announcement to ALL players via attributed tellraw
+    style = GOD_CHAT_STYLE.get(source, GOD_CHAT_STYLE["kind_god"])
+    announce_parts = [f"Quest for {player}: {title}"]
+    if description:
+        announce_parts.append(f" — {description[:100]}")
     if reward_hint:
-        cmd = _cmd(f"say Mission for {player}: {reward_hint}")
-        if cmd:
-            commands.append(cmd)
+        announce_parts.append(f" ({reward_hint})")
+    announce_text = "".join(announce_parts)
+    tellraw_json = json.dumps([
+        {"text": f"<{style['name']}> ", "color": style["color"]},
+        {"text": announce_text, "color": "yellow"},
+    ])
+    cmd = _cmd(f"tellraw @a {tellraw_json}")
+    if cmd:
+        commands.append(cmd)
 
     return commands
 
