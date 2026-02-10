@@ -320,7 +320,7 @@ class DeepGod:
         commands = []
         if message.tool_calls:
             tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_RESPONSE]
-            commands = translate_tool_calls(tool_calls)
+            commands = translate_tool_calls(tool_calls, source="deep_god")
 
             real_actions = [
                 tc for tc in tool_calls if tc.function.name != "do_nothing"
