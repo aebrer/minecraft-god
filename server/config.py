@@ -36,4 +36,7 @@ MEMORY_MAX_ENTRIES = int(os.getenv("MEMORY_MAX_ENTRIES", "15"))
 MEMORY_CONSOLIDATION_INTERVAL_TICKS = int(os.getenv("MEMORY_CONSOLIDATION_INTERVAL_TICKS", "960"))
 
 # Prayer keywords that trigger immediate Kind God response
-PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "lord", "herald", "bard", "guide"}
+PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "lord"}
+
+# Herald keywords — trigger the Herald, NOT the Kind God
+HERALD_KEYWORDS = {"herald", "bard", "guide"}

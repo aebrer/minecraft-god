@@ -25,6 +25,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Minecraft God — Paper Plugin
@@ -38,6 +40,50 @@ import java.time.Duration;
 public class MinecraftGodPlugin extends JavaPlugin implements Listener {
 
     private static final String BACKEND_URL = "http://localhost:8000";
+    private static final int CLOSE_RANGE = 8;
+    private static final int BLOCK_SCAN_RANGE = 8;
+
+    /** Blocks worth reporting in the nearby scan — ores, containers, hazards, structures. */
+    private static final Set<org.bukkit.Material> NOTABLE_BLOCKS = EnumSet.of(
+            // Ores
+            org.bukkit.Material.COAL_ORE, org.bukkit.Material.IRON_ORE,
+            org.bukkit.Material.GOLD_ORE, org.bukkit.Material.DIAMOND_ORE,
+            org.bukkit.Material.EMERALD_ORE, org.bukkit.Material.LAPIS_ORE,
+            org.bukkit.Material.REDSTONE_ORE, org.bukkit.Material.COPPER_ORE,
+            org.bukkit.Material.DEEPSLATE_COAL_ORE, org.bukkit.Material.DEEPSLATE_IRON_ORE,
+            org.bukkit.Material.DEEPSLATE_GOLD_ORE, org.bukkit.Material.DEEPSLATE_DIAMOND_ORE,
+            org.bukkit.Material.DEEPSLATE_EMERALD_ORE, org.bukkit.Material.DEEPSLATE_LAPIS_ORE,
+            org.bukkit.Material.DEEPSLATE_REDSTONE_ORE, org.bukkit.Material.DEEPSLATE_COPPER_ORE,
+            org.bukkit.Material.NETHER_GOLD_ORE, org.bukkit.Material.NETHER_QUARTZ_ORE,
+            org.bukkit.Material.ANCIENT_DEBRIS,
+            // Containers
+            org.bukkit.Material.CHEST, org.bukkit.Material.TRAPPED_CHEST,
+            org.bukkit.Material.BARREL, org.bukkit.Material.ENDER_CHEST,
+            org.bukkit.Material.SHULKER_BOX,
+            // Utility
+            org.bukkit.Material.FURNACE, org.bukkit.Material.BLAST_FURNACE,
+            org.bukkit.Material.SMOKER, org.bukkit.Material.BREWING_STAND,
+            org.bukkit.Material.CRAFTING_TABLE, org.bukkit.Material.ANVIL,
+            org.bukkit.Material.ENCHANTING_TABLE, org.bukkit.Material.GRINDSTONE,
+            org.bukkit.Material.SMITHING_TABLE, org.bukkit.Material.STONECUTTER,
+            org.bukkit.Material.CARTOGRAPHY_TABLE, org.bukkit.Material.LOOM,
+            org.bukkit.Material.HOPPER, org.bukkit.Material.DISPENSER, org.bukkit.Material.DROPPER,
+            org.bukkit.Material.BEACON, org.bukkit.Material.RESPAWN_ANCHOR,
+            // Hazards
+            org.bukkit.Material.LAVA, org.bukkit.Material.FIRE, org.bukkit.Material.SOUL_FIRE,
+            org.bukkit.Material.MAGMA_BLOCK, org.bukkit.Material.CACTUS,
+            org.bukkit.Material.SWEET_BERRY_BUSH, org.bukkit.Material.POWDER_SNOW,
+            org.bukkit.Material.TNT,
+            // Structures / special
+            org.bukkit.Material.SPAWNER, org.bukkit.Material.END_PORTAL_FRAME,
+            org.bukkit.Material.END_PORTAL, org.bukkit.Material.NETHER_PORTAL,
+            org.bukkit.Material.OBSIDIAN, org.bukkit.Material.CRYING_OBSIDIAN,
+            org.bukkit.Material.BEDROCK, org.bukkit.Material.BUDDING_AMETHYST,
+            // Nature / farming
+            org.bukkit.Material.BEE_NEST, org.bukkit.Material.BEEHIVE,
+            org.bukkit.Material.WATER
+    );
+
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -247,7 +293,104 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             ps.add("location", locationToJson(p.getLocation()));
             ps.addProperty("dimension", dimensionId(p.getWorld()));
             ps.addProperty("health", p.getHealth());
+            ps.addProperty("maxHealth", p.getMaxHealth());
+            ps.addProperty("foodLevel", p.getFoodLevel());
             ps.addProperty("level", p.getLevel());
+            ps.addProperty("gameMode", p.getGameMode().name().toLowerCase());
+
+            // Armor
+            JsonArray armor = new JsonArray();
+            var equipment = p.getInventory();
+            if (equipment.getHelmet() != null)
+                armor.add(equipment.getHelmet().getType().getKey().toString());
+            if (equipment.getChestplate() != null)
+                armor.add(equipment.getChestplate().getType().getKey().toString());
+            if (equipment.getLeggings() != null)
+                armor.add(equipment.getLeggings().getType().getKey().toString());
+            if (equipment.getBoots() != null)
+                armor.add(equipment.getBoots().getType().getKey().toString());
+            ps.add("armor", armor);
+
+            // Main hand item
+            var mainHand = equipment.getItemInMainHand();
+            if (mainHand.getType() != org.bukkit.Material.AIR) {
+                ps.addProperty("mainHand", mainHand.getType().getKey().toString());
+            }
+
+            // Full inventory — aggregate all items by type
+            JsonObject inventory = new JsonObject();
+            var inv = p.getInventory();
+            for (var stack : inv.getContents()) {
+                if (stack == null || stack.getType() == org.bukkit.Material.AIR) continue;
+                String id = stack.getType().getKey().toString().replace("minecraft:", "");
+                int existing = inventory.has(id) ? inventory.get(id).getAsInt() : 0;
+                inventory.addProperty(id, existing + stack.getAmount());
+            }
+            ps.add("inventory", inventory);
+
+            // Nearby entities within 32 blocks — aggregate by type
+            JsonObject nearbyEntities = new JsonObject();
+            // Close-range entities within 8 blocks — immediate surroundings
+            JsonObject closeEntities = new JsonObject();
+            for (Entity entity : p.getNearbyEntities(32, 32, 32)) {
+                var type = entity.getType();
+                if (type == org.bukkit.entity.EntityType.ITEM
+                        || type == org.bukkit.entity.EntityType.EXPERIENCE_ORB
+                        || type == org.bukkit.entity.EntityType.ARROW
+                        || type == org.bukkit.entity.EntityType.MARKER) continue;
+                String id = type.getKey().toString().replace("minecraft:", "");
+                int existing = nearbyEntities.has(id) ? nearbyEntities.get(id).getAsInt() : 0;
+                nearbyEntities.addProperty(id, existing + 1);
+                // Also check if within close range
+                if (entity.getLocation().distance(p.getLocation()) <= CLOSE_RANGE) {
+                    int closeExisting = closeEntities.has(id) ? closeEntities.get(id).getAsInt() : 0;
+                    closeEntities.addProperty(id, closeExisting + 1);
+                }
+            }
+            ps.add("nearbyEntities", nearbyEntities);
+            ps.add("closeEntities", closeEntities);
+
+            // Notable blocks within 8 blocks
+            JsonObject notableBlocks = new JsonObject();
+            Location pLoc = p.getLocation();
+            int px = pLoc.getBlockX(), py = pLoc.getBlockY(), pz = pLoc.getBlockZ();
+            World world = p.getWorld();
+            for (int dx = -BLOCK_SCAN_RANGE; dx <= BLOCK_SCAN_RANGE; dx++) {
+                for (int dy = -BLOCK_SCAN_RANGE; dy <= BLOCK_SCAN_RANGE; dy++) {
+                    for (int dz = -BLOCK_SCAN_RANGE; dz <= BLOCK_SCAN_RANGE; dz++) {
+                        var block = world.getBlockAt(px + dx, py + dy, pz + dz);
+                        if (NOTABLE_BLOCKS.contains(block.getType())) {
+                            String id = block.getType().getKey().toString().replace("minecraft:", "");
+                            int existing = notableBlocks.has(id) ? notableBlocks.get(id).getAsInt() : 0;
+                            notableBlocks.addProperty(id, existing + 1);
+                        }
+                    }
+                }
+            }
+            ps.add("notableBlocks", notableBlocks);
+
+            // What the player is looking at (crosshair target)
+            var targetBlock = p.getTargetBlockExact(5);
+            if (targetBlock != null && targetBlock.getType() != org.bukkit.Material.AIR) {
+                JsonObject lookingAt = new JsonObject();
+                lookingAt.addProperty("block", targetBlock.getType().getKey().toString().replace("minecraft:", ""));
+                lookingAt.add("blockLocation", locationToJson(targetBlock.getLocation()));
+                ps.add("lookingAt", lookingAt);
+            }
+            var targetEntity = p.getTargetEntity(5);
+            if (targetEntity != null) {
+                if (!ps.has("lookingAt")) {
+                    ps.add("lookingAt", new JsonObject());
+                }
+                var lookingAt = ps.getAsJsonObject("lookingAt");
+                String entityId = targetEntity.getType().getKey().toString().replace("minecraft:", "");
+                if (targetEntity instanceof Player) {
+                    lookingAt.addProperty("entity", targetEntity.getName());
+                } else {
+                    lookingAt.addProperty("entity", entityId);
+                }
+            }
+
             statusArray.add(ps);
         }
 

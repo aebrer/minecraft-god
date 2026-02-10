@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from server.config import PRAYER_KEYWORDS
+from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
 
 logger = logging.getLogger("minecraft-god")
 
@@ -24,12 +24,12 @@ class EventBuffer:
                 self._events.append(event)
 
     def has_prayer(self) -> bool:
-        """Check if any recent chat event contains prayer keywords."""
+        """Check if any recent chat event contains prayer or herald keywords."""
         with self._lock:
             for event in self._events:
                 if event.get("type") == "chat":
                     message = event.get("message", "").lower()
-                    if any(kw in message for kw in PRAYER_KEYWORDS):
+                    if any(kw in message for kw in PRAYER_KEYWORDS | HERALD_KEYWORDS):
                         return True
         return False
 
@@ -57,10 +57,60 @@ class EventBuffer:
             lines = []
             for p in player_status["players"]:
                 loc = p.get("location", {})
-                lines.append(
+                # Basic info
+                info = (
                     f"  - {p['name']}: at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')}) "
-                    f"in {p.get('dimension', '?')}, health={p.get('health', '?')}, level={p.get('level', '?')}"
+                    f"in {p.get('dimension', '?')}, health={p.get('health', '?')}/{p.get('maxHealth', '?')}, "
+                    f"food={p.get('foodLevel', '?')}/20, level={p.get('level', '?')}"
                 )
+                # Armor
+                armor = [a.replace("minecraft:", "") for a in p.get("armor", []) if a != "minecraft:air"]
+                if armor:
+                    info += f"\n    Armor: {', '.join(armor)}"
+                else:
+                    info += "\n    Armor: none"
+                # Held item
+                if p.get("mainHand"):
+                    info += f" | Holding: {p['mainHand'].replace('minecraft:', '')}"
+                # Full inventory
+                inventory = p.get("inventory", {})
+                if inventory:
+                    # Sort by count descending for readability
+                    sorted_inv = sorted(inventory.items(), key=lambda x: -x[1])
+                    items_str = ", ".join(f"{count} {item}" for item, count in sorted_inv)
+                    info += f"\n    Inventory: {items_str}"
+                else:
+                    info += "\n    Inventory: empty"
+                # What the player is looking at
+                looking_at = p.get("lookingAt", {})
+                if looking_at:
+                    parts = []
+                    if looking_at.get("block"):
+                        bloc = looking_at.get("blockLocation", {})
+                        parts.append(f"{looking_at['block']} at ({bloc.get('x', '?')}, {bloc.get('y', '?')}, {bloc.get('z', '?')})")
+                    if looking_at.get("entity"):
+                        parts.append(looking_at["entity"])
+                    if parts:
+                        info += f"\n    Looking at: {', '.join(parts)}"
+                # Immediate surroundings (8 blocks)
+                close = p.get("closeEntities", {})
+                if close:
+                    sorted_close = sorted(close.items(), key=lambda x: -x[1])
+                    close_str = ", ".join(f"{count} {etype}" for etype, count in sorted_close)
+                    info += f"\n    Immediate vicinity (8 blocks): {close_str}"
+                # Notable blocks nearby (8 blocks)
+                notable = p.get("notableBlocks", {})
+                if notable:
+                    sorted_notable = sorted(notable.items(), key=lambda x: -x[1])
+                    notable_str = ", ".join(f"{count} {block}" for block, count in sorted_notable)
+                    info += f"\n    Notable blocks nearby (8 blocks): {notable_str}"
+                # Nearby entities (wider area)
+                nearby = p.get("nearbyEntities", {})
+                if nearby:
+                    sorted_nearby = sorted(nearby.items(), key=lambda x: -x[1])
+                    nearby_str = ", ".join(f"{count} {etype}" for etype, count in sorted_nearby)
+                    info += f"\n    Nearby entities (32 blocks): {nearby_str}"
+                lines.append(info)
             sections.append("PLAYERS ONLINE:\n" + "\n".join(lines))
 
         # Chat messages — verbatim, wrapped in delimiters
