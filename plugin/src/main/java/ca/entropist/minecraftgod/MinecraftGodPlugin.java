@@ -213,6 +213,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
 
         data.add("location", locationToJson(entity.getLocation()));
         data.addProperty("dimension", dimensionId(entity.getWorld()));
+        data.addProperty("biome", entity.getLocation().getBlock().getBiome().getKey().toString().replace("minecraft:", ""));
         sendEvent("entity_die", data);
     }
 
@@ -297,6 +298,19 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             ps.addProperty("foodLevel", p.getFoodLevel());
             ps.addProperty("level", p.getLevel());
             ps.addProperty("gameMode", p.getGameMode().name().toLowerCase());
+
+            // Facing direction — cardinal from yaw, pitch description
+            float yaw = p.getLocation().getYaw() % 360;
+            if (yaw < 0) yaw += 360;
+            String[] cardinals = {"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
+            String facing = cardinals[Math.round(yaw / 45f) % 8];
+            ps.addProperty("facing", facing);
+            float pitch = p.getLocation().getPitch();
+            String lookVertical = pitch < -45 ? "up" : pitch > 45 ? "down" : "ahead";
+            ps.addProperty("lookingVertical", lookVertical);
+
+            // Biome
+            ps.addProperty("biome", p.getLocation().getBlock().getBiome().getKey().toString().replace("minecraft:", ""));
 
             // Armor
             JsonArray armor = new JsonArray();
