@@ -16,6 +16,7 @@ from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS, M
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
+from server.herald_god import HeraldGod
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,7 @@ event_buffer = EventBuffer()
 command_queue: list[dict] = []
 kind_god = KindGod()
 deep_god = DeepGod()
+herald_god = HeraldGod()
 last_prayer_time: float = 0
 _tick_task: asyncio.Task | None = None
 _ticks_since_consolidation: int = 0
@@ -99,6 +101,7 @@ async def get_status():
         "kind_god_action_count": kind_god.action_count,
         "kind_god_history_length": len(kind_god.conversation_history),
         "deep_god_history_length": len(deep_god.conversation_history),
+        "herald_history_length": len(herald_god.conversation_history),
         "kind_god_memory_count": len(kind_god.memory.memories),
         "last_consolidation": kind_god.memory.last_consolidation,
         "ticks_until_consolidation": max(0, MEMORY_CONSOLIDATION_INTERVAL_TICKS - _ticks_since_consolidation),
@@ -145,6 +148,14 @@ async def _god_tick():
     if commands:
         command_queue.extend(commands)
         logger.info(f"Queued {len(commands)} commands")
+
+    # The Herald speaks independently — not silenced by either god
+    if herald_god.should_act(event_summary):
+        logger.info("=== THE HERALD SPEAKS ===")
+        herald_commands = await herald_god.think(event_summary)
+        if herald_commands:
+            command_queue.extend(herald_commands)
+            logger.info(f"Queued {len(herald_commands)} Herald commands")
 
     # Memory consolidation check
     global _ticks_since_consolidation

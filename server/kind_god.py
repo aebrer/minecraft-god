@@ -392,7 +392,7 @@ class KindGod:
         if message.tool_calls:
             # Cap tool calls
             tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_RESPONSE]
-            commands = translate_tool_calls(tool_calls)
+            commands = translate_tool_calls(tool_calls, source="kind_god")
 
             # Track actions (do_nothing doesn't count)
             real_actions = [

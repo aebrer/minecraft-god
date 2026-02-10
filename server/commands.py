@@ -11,8 +11,15 @@ logger = logging.getLogger("minecraft-god")
 
 # Allowlisted command prefixes — anything not starting with one of these is dropped
 ALLOWED_COMMANDS = {
-    "summon", "title", "say", "weather", "effect", "tp", "teleport",
+    "summon", "title", "say", "tellraw", "weather", "effect", "tp", "teleport",
     "give", "clear", "playsound", "time", "difficulty", "setblock", "fill",
+}
+
+# Chat prefixes for each god — used by tellraw for attributed messages
+GOD_CHAT_STYLE = {
+    "kind_god": {"name": "The Kind God", "color": "gold"},
+    "deep_god": {"name": "???", "color": "dark_red"},
+    "herald": {"name": "The Herald", "color": "green"},
 }
 
 # Max volume for fill commands (prevents massive world edits)
@@ -56,17 +63,19 @@ VALID_EFFECTS = {
 }
 
 
-def translate_tool_calls(tool_calls: list) -> list[dict]:
+def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dict]:
     """Convert LLM tool calls into a list of command dicts.
 
     Each command dict has:
         - "command": the Minecraft command string (without leading /)
         - "target_player": optional player name for relative commands
+
+    source: which god is speaking ("kind_god", "deep_god", "herald")
     """
     commands = []
     for tc in tool_calls:
         try:
-            result = _translate_one(tc)
+            result = _translate_one(tc, source)
             if result is None:
                 continue
             if isinstance(result, list):
@@ -78,7 +87,7 @@ def translate_tool_calls(tool_calls: list) -> list[dict]:
     return commands
 
 
-def _translate_one(tool_call) -> dict | list[dict] | None:
+def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | None:
     name = tool_call.function.name
     args = json.loads(tool_call.function.arguments)
 
@@ -88,7 +97,7 @@ def _translate_one(tool_call) -> dict | list[dict] | None:
         return None
 
     if name == "send_message":
-        return _send_message(args)
+        return _send_message(args, source)
     elif name == "summon_mob":
         return _summon_mob(args)
     elif name == "change_weather":
@@ -150,7 +159,7 @@ def _cmd(command: str, target_player: str | None = None) -> dict | None:
     return {"command": command, "target_player": target_player}
 
 
-def _send_message(args: dict) -> dict | list[dict] | None:
+def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | None:
     message = args.get("message", "")
     style = args.get("style", "chat")
     target = args.get("target_player")
@@ -171,8 +180,16 @@ def _send_message(args: dict) -> dict | list[dict] | None:
             return None
         return _cmd(f"title {selector} actionbar {text_json}")
     else:
-        # Chat style — use /say (broadcasts as [Server])
-        return _cmd(f"say {message}")
+        # Chat style — use tellraw with attributed god name
+        god_style = GOD_CHAT_STYLE.get(source, {"name": "God", "color": "white"})
+        selector = target if target else "@a"
+        if target and not _validate_player_target(selector):
+            return None
+        tellraw_json = json.dumps([
+            {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+            {"text": message, "color": "white"},
+        ])
+        return _cmd(f"tellraw {selector} {tellraw_json}")
 
 
 def _summon_mob(args: dict) -> list[dict] | None:
