@@ -17,6 +17,7 @@ from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
 from server.herald_god import HeraldGod
+from server.deaths import DeathMemorial
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +31,7 @@ command_queue: list[dict] = []
 kind_god = KindGod()
 deep_god = DeepGod()
 herald_god = HeraldGod()
+death_memorial = DeathMemorial()
 last_prayer_time: float = 0
 _tick_task: asyncio.Task | None = None
 _tick_lock = asyncio.Lock()
@@ -69,6 +71,10 @@ async def receive_event(event: GameEvent):
     """Receive a game event from the behavior pack."""
     event_data = event.model_dump()
     event_buffer.add(event_data)
+
+    # Record player deaths persistently
+    if event_data.get("type") == "entity_die" and event_data.get("isPlayer"):
+        death_memorial.record_death(event_data)
 
     # Fast-path: if this chat contains prayer or herald keywords, trigger immediate tick
     if event_data.get("type") == "chat":
@@ -114,6 +120,7 @@ async def get_status():
         "last_consolidation": kind_god.memory.last_consolidation,
         "ticks_until_consolidation": max(0, MEMORY_CONSOLIDATION_INTERVAL_TICKS - _ticks_since_consolidation),
         "player_status": event_buffer.get_player_status(),
+        "death_records": {p: len(d) for p, d in death_memorial.deaths.items()},
     }
 
 
@@ -125,7 +132,7 @@ async def _herald_only_tick():
         return
 
     async with _tick_lock:
-        event_summary = event_buffer.drain_and_summarize()
+        event_summary = event_buffer.drain_and_summarize(death_memorial=death_memorial)
         if not event_summary:
             return
 
@@ -167,7 +174,7 @@ async def _god_tick_inner():
     """Actual tick logic, called under lock."""
     global command_queue
 
-    event_summary = event_buffer.drain_and_summarize()
+    event_summary = event_buffer.drain_and_summarize(death_memorial=death_memorial)
     if not event_summary:
         return
 
