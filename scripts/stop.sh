@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gracefully stop the Python backend and Bedrock Dedicated Server
+# Gracefully stop the Python backend and Paper server
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -7,30 +7,29 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "=== Minecraft God: Stopping ==="
 
-# Stop BDS
-if [ -f "$PROJECT_DIR/.bds.pid" ]; then
-    BDS_PID=$(cat "$PROJECT_DIR/.bds.pid")
-    if kill -0 "$BDS_PID" 2>/dev/null; then
-        echo "Stopping BDS (PID: $BDS_PID)..."
-        kill "$BDS_PID"
-        # Wait for graceful shutdown
-        for i in $(seq 1 10); do
-            if ! kill -0 "$BDS_PID" 2>/dev/null; then
+# Stop Paper
+if [ -f "$PROJECT_DIR/.paper.pid" ]; then
+    PAPER_PID=$(cat "$PROJECT_DIR/.paper.pid")
+    if kill -0 "$PAPER_PID" 2>/dev/null; then
+        echo "Stopping Paper (PID: $PAPER_PID)..."
+        kill "$PAPER_PID"
+        for i in $(seq 1 15); do
+            if ! kill -0 "$PAPER_PID" 2>/dev/null; then
                 break
             fi
             sleep 1
         done
-        if kill -0 "$BDS_PID" 2>/dev/null; then
-            echo "  Force killing BDS..."
-            kill -9 "$BDS_PID"
+        if kill -0 "$PAPER_PID" 2>/dev/null; then
+            echo "  Force killing Paper..."
+            kill -9 "$PAPER_PID"
         fi
-        echo "  BDS stopped"
+        echo "  Paper stopped"
     else
-        echo "  BDS not running"
+        echo "  Paper not running"
     fi
-    rm -f "$PROJECT_DIR/.bds.pid"
+    rm -f "$PROJECT_DIR/.paper.pid"
 else
-    echo "  No BDS PID file found"
+    echo "  No Paper PID file found"
 fi
 
 # Stop Python backend

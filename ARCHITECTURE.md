@@ -1,6 +1,9 @@
 # minecraft-god: Architecture
 
-A Bedrock Dedicated Server with two LLM deities — one kind, one ancient — watching over players.
+A Paper MC server (Java Edition) with two LLM deities — one kind, one ancient — watching over players.
+
+> **Note**: Originally built on Bedrock Dedicated Server with a JavaScript behavior pack.
+> Ported to Paper MC + Java plugin on 2026-02-09.
 
 ## The Concept
 
@@ -47,10 +50,10 @@ The Deeper Truth:
 
 ## Setup
 
-- **Server**: Bedrock Dedicated Server on Linux
-- **Players**: 5 max, survival mode
+- **Server**: Paper MC 1.21.11 (Java Edition) on Linux
+- **Players**: 20 max, survival mode, whitelist enforced
 - **LLM**: GLM-4.7 via z.ai (free, OpenAI-compatible API)
-- **Networking**: Port forward UDP 19132 on Asus Merlin router
+- **Networking**: Port forward TCP 25565 on router
 
 ## Architecture Overview
 
@@ -58,8 +61,8 @@ Three components in a loop:
 
 ```
 ┌─────────────────────────┐       HTTP POST        ┌─────────────────────┐
-│  Bedrock Server         │   (game events JSON)   │  Python Backend     │
-│  + Behavior Pack (JS)   │ ────────────────────── │  (FastAPI)          │
+│  Paper Server           │   (game events JSON)   │  Python Backend     │
+│  + God Plugin (Java)    │ ────────────────────── │  (FastAPI)          │
 │                         │                         │                     │
 │  polls GET /commands    │ ◄────────────────────── │  command queue      │
 │  every 5 seconds        │   (commands JSON)       │                     │
@@ -75,11 +78,11 @@ Three components in a loop:
 
 ### Why This Architecture?
 
-**Why a behavior pack instead of parsing stdout?**
-BDS stdout is severely limited — it only logs player connect/disconnect and errors. No chat, no deaths, no block breaks. The Bedrock Script API (`@minecraft/server`) gives us rich event access. The `@minecraft/server-net` module lets the behavior pack make HTTP requests to our Python backend. This is the only reliable way to get game events.
+**Why a plugin instead of parsing stdout?**
+Server stdout is limited. The Paper plugin API gives us rich event access — chat, deaths, block breaks, combat, weather, everything. The plugin uses Java's built-in `HttpClient` to communicate with the Python backend via HTTP.
 
 **Why HTTP polling for commands (not push)?**
-`@minecraft/server-net` only supports HTTP requests, not websockets. Polling every 5 seconds is fine since the god acts every 30-60 seconds anyway.
+Simplicity. Polling every 5 seconds is fine since the god acts every 30-60 seconds anyway. The plugin polls on an async thread and dispatches commands on the main thread.
 
 **Why FastAPI?**
 Async-native, which matters for the background tick loop + event accumulation + command queue. Lightweight. Perfect fit.
@@ -87,69 +90,32 @@ Async-native, which matters for the background tick loop + event accumulation + 
 **Why OpenAI SDK instead of zhipuai SDK?**
 z.ai is OpenAI-compatible. Using the standard `openai` library means zero vendor lock-in — swap to any OpenAI-compatible endpoint by changing one line.
 
-## The Behavior Pack
+## The Paper Plugin
 
-A JavaScript behavior pack using `@minecraft/server` and `@minecraft/server-net`.
+A Java plugin (`plugin/`) using the Paper/Bukkit event API and `java.net.http.HttpClient`.
 
 ### Events Captured
 
 **High priority (always sent, never batched away):**
-- `chatSend` — what players say (primary interaction channel with god)
-- `entityDie` — player deaths, notable mob kills
-- `playerJoin` / `playerLeave` — god notices arrivals and departures
-- `playerSpawn` (initial) — first login gets a welcome
+- `AsyncPlayerChatEvent` → `"chat"` — what players say (primary interaction channel with god)
+- `EntityDeathEvent` → `"entity_die"` — player deaths, notable mob kills
+- `PlayerJoinEvent` → `"player_join"` / `"player_initial_spawn"` — god notices arrivals
+- `PlayerQuitEvent` → `"player_leave"` — god notices departures
 
 **Medium priority (sent but aggregated in the Python backend):**
-- `playerBreakBlock` / `playerPlaceBlock` — summarized as "Steve mined 47 stone, 3 diamonds"
-- `entityHurt` (player-involved only) — combat awareness
-- `weatherChange` — environmental context
+- `BlockBreakEvent` / `BlockPlaceEvent` → `"block_break"` / `"block_place"` — summarized
+- `EntityDamageByEntityEvent` → `"combat"` (when player involved) — combat awareness
+- `WeatherChangeEvent` / `ThunderChangeEvent` → `"weather_change"` — environmental context
 
 **Periodic:**
-- Player status beacon every 30s — positions, health, level
-
-**Skipped (too noisy):**
-- `itemUse`, pistons, pressure plates, redstone, passive mob spawns
+- Player status beacon every 30s (600 ticks) — positions, health, level
 
 ### How It Works
 
-1. Event fires → behavior pack sends HTTP POST to `http://localhost:8000/event` with JSON payload
-2. Every 5 seconds → behavior pack sends HTTP GET to `http://localhost:8000/commands`
-3. Any pending commands are executed via `dimension.runCommand()` or `player.runCommand()`
-
-### Key Requirement: Beta APIs
-
-`@minecraft/server-net` requires the **Beta APIs experiment** enabled on the world. Options:
-- Ship a pre-made world with the experiment already enabled (recommended)
-- Binary-patch `level.dat` to flip the experiment flag
-- Create the world on a client with Beta APIs enabled, export it
-
-Also requires `bds/config/default/permissions.json` to include `@minecraft/server-net` in `allowed_modules`.
-
-### Enabling Experiments via level.dat NBT Edit
-
-Bedrock `level.dat` has an 8-byte header (version + length) before the NBT data. Use `nbtlib` (in the project venv) to edit:
-
-```python
-import nbtlib, struct, io
-
-with open('bds/worlds/God World/level.dat', 'rb') as fp:
-    header = fp.read(8)
-    nbt_data = fp.read()
-
-f = nbtlib.File.parse(io.BytesIO(nbt_data), byteorder='little')
-f['experiments']['experiments_ever_used'] = nbtlib.Byte(1)
-f['experiments']['saved_with_toggled_experiments'] = nbtlib.Byte(1)
-f['experiments']['gametest'] = nbtlib.Byte(1)           # Beta APIs
-f['experiments']['data_driven_items'] = nbtlib.Byte(1)  # Holiday Creator Features
-
-buf = io.BytesIO()
-f.write(buf, byteorder='little')
-nbt_bytes = buf.getvalue()
-version = struct.unpack('<I', header[:4])[0]
-with open('bds/worlds/God World/level.dat', 'wb') as fp:
-    fp.write(struct.pack('<II', version, len(nbt_bytes)))
-    fp.write(nbt_bytes)
-```
+1. Event fires → plugin sends async HTTP POST to `http://localhost:8000/event` with JSON payload
+2. Every 5 seconds (100 ticks) → plugin polls `GET http://localhost:8000/commands` on async thread
+3. Commands dispatched on the main thread via `Bukkit.dispatchCommand(consoleSender, cmd)`
+4. For player-targeted commands: `@s` is replaced with player name, `~ ~ ~` resolved to player coords
 
 ## The Python Backend
 
@@ -202,7 +168,7 @@ The Deep God gets a restricted tool set — it does not gift, quest, teleport, o
 
 **Why cap summon at 5?** LLMs are generous with numbers. Without caps, you get 50 creepers and a crashed server.
 
-**No `/fill`, `/setblock`, or `/kill`** — too destructive. The gods can punish through mobs, effects, and weather, not by deleting builds or instakilling.
+**`/fill` and `/setblock` added with strict limits** — fill capped at 500 blocks, blocked items enforced. No `/kill`.
 
 ## The Kind God (Surface God)
 
@@ -358,33 +324,35 @@ minecraft-god/
   .gitignore
   .env.example             ← ZHIPU_API_KEY=your_key_here
 
-  addons/
-    backrooms_addon_plus/
-      bp/                     ← The Backrooms Addon+ behavior pack
-      rp/                     ← The Backrooms Addon+ resource pack
+  plugin/                            ← Paper plugin (Java)
+    pom.xml                          ← Maven build file
+    src/main/java/.../
+      MinecraftGodPlugin.java        ← event listeners, HTTP client, command polling
+    src/main/resources/
+      plugin.yml                     ← plugin descriptor
 
-  behavior_pack/
-    manifest.json           ← pack manifest (script module + server-net dep)
-    pack_icon.png
-    scripts/
-      main.js               ← event listeners, HTTP posting, command polling
+  paper/                             ← Paper server runtime (not in git)
+    paper-1.21.11-69.jar
+    plugins/minecraft-god-plugin.jar
+    server.properties, world/, etc.
 
-  server/
+  server/                            ← Python backend (unchanged)
     __init__.py
     main.py                 ← FastAPI app, endpoints, background tick loop
     kind_god.py             ← Kind God: system prompt, tools, conversation history
     deep_god.py             ← Deep God: system prompt, restricted tools, trigger logic
     llm.py                  ← shared LLM client (z.ai via OpenAI SDK)
     events.py               ← EventBuffer class, aggregation, summarization
-    commands.py             ← tool call → Minecraft command translation
+    commands.py             ← tool call → Minecraft command translation (Java Edition syntax)
     config.py               ← settings from .env + defaults
 
+  behavior_pack/            ← legacy Bedrock behavior pack (kept for reference)
+    manifest.json
+    scripts/main.js
+
   scripts/
-    install_bds.sh          ← download + extract Bedrock Dedicated Server
-    configure_bds.sh        ← server.properties, install behavior pack, permissions
-    start.sh                ← launch BDS + Python backend
+    start.sh                ← launch Paper + Python backend
     stop.sh                 ← graceful shutdown
-    minecraft-god.service   ← systemd unit file
 ```
 
 ## MVP Plan (Build Order)
@@ -434,8 +402,7 @@ The architecture is inherently sandboxed — the LLM can only respond with tool 
 
 ## Known Challenges
 
-- **Beta APIs experiment** — most fragile part of setup, need to pre-enable on world
-- **BDS on CachyOS** — officially Ubuntu-only but works with glibc ≥ 2.35 (CachyOS has 2.42). Use `LD_LIBRARY_PATH=.` when launching
 - **LLM latency** — 2-10s for GLM-4.7 calls, async loop handles this naturally
-- **Lost events** — if Python backend is down, behavior pack HTTP fails silently. God simply "blinked." Acceptable.
-- **Command targeting** — commands with `~ ~ ~` need to run via `player.runCommand()` not `dimension.runCommand()` to resolve relative coords correctly
+- **Lost events** — if Python backend is down, plugin HTTP fails silently. God simply "blinked." Acceptable.
+- **Command targeting** — commands with `~ ~ ~` are resolved to absolute coords using the target player's position before dispatching via console sender
+- **Chat event deprecation** — uses `AsyncPlayerChatEvent` (deprecated but functional); may need migration to Paper's `AsyncChatEvent` in future versions
