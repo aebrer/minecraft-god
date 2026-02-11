@@ -1,9 +1,11 @@
 package ca.entropist.minecraftgod;
 
 import com.google.gson.*;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.World;
+import net.sandrohc.schematic4j.SchematicLoader;
+import net.sandrohc.schematic4j.schematic.Schematic;
+import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,13 +22,16 @@ import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.EnumSet;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Minecraft God — Paper Plugin
@@ -42,6 +47,9 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     private static final String BACKEND_URL = "http://localhost:8000";
     private static final int CLOSE_RANGE = 8;
     private static final int BLOCK_SCAN_RANGE = 8;
+
+    /** Directory containing .schem files for divine construction. */
+    private File schematicsDir;
 
     /** Blocks worth reporting in the nearby scan — ores, containers, hazards, structures. */
     private static final Set<org.bukkit.Material> NOTABLE_BLOCKS = EnumSet.of(
@@ -92,6 +100,18 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
+
+        // Locate schematics directory (relative to server working directory: ../scripts/schematics/schematics/)
+        File serverRoot = new File(System.getProperty("user.dir")); // paper/ directory (absolute)
+        schematicsDir = new File(serverRoot.getParentFile(), "scripts/schematics/schematics");
+        if (schematicsDir.isDirectory()) {
+            int count = 0;
+            File[] files = schematicsDir.listFiles((dir, name) -> name.endsWith(".schem"));
+            if (files != null) count = files.length;
+            getLogger().info("Schematic library loaded: " + count + " blueprints in " + schematicsDir.getAbsolutePath());
+        } else {
+            getLogger().warning("Schematics directory not found: " + schematicsDir.getAbsolutePath());
+        }
 
         // Command polling — async, every 100 ticks (5 seconds)
         new BukkitRunnable() {
@@ -435,6 +455,8 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
 
                     if (commands.isEmpty()) return;
 
+                    getLogger().info("Received " + commands.size() + " command(s) from backend");
+
                     // Must execute commands on the main thread
                     new BukkitRunnable() {
                         @Override
@@ -449,6 +471,13 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     }
 
     private void executeCommand(JsonObject cmd) {
+        // Check for special schematic build command
+        if (cmd.has("type") && "build_schematic".equals(cmd.get("type").getAsString())) {
+            getLogger().info("Executing build_schematic: " + cmd);
+            executeSchematicBuild(cmd);
+            return;
+        }
+
         String command = cmd.get("command").getAsString();
         String targetPlayer = cmd.has("target_player") && !cmd.get("target_player").isJsonNull()
                 ? cmd.get("target_player").getAsString() : null;
@@ -463,9 +492,221 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                     command = resolveRelativeCoords(command, player.getLocation());
                 }
             }
+            getLogger().info("Executing: " + command.substring(0, Math.min(command.length(), 120)));
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
         } catch (Exception e) {
             getLogger().warning("Command failed: " + command + " — " + e.getMessage());
+        }
+    }
+
+    // ─── Schematic Building ──────────────────────────────────────────────────────
+
+    private void executeSchematicBuild(JsonObject cmd) {
+        String blueprintId = cmd.get("blueprint_id").getAsString();
+        int originX = cmd.get("x").getAsInt();
+        int originY = cmd.get("y").getAsInt();
+        int originZ = cmd.get("z").getAsInt();
+        int rotation = cmd.has("rotation") ? cmd.get("rotation").getAsInt() : 0;
+
+        // Validate blueprint ID (alphanumeric + hyphens only)
+        if (!blueprintId.matches("^[a-z0-9-]+$")) {
+            getLogger().warning("Blocked invalid blueprint ID: " + blueprintId);
+            return;
+        }
+
+        File schemFile = new File(schematicsDir, blueprintId + ".schem");
+        if (!schemFile.exists()) {
+            getLogger().warning("Schematic not found: " + schemFile.getAbsolutePath());
+            return;
+        }
+
+        // Load schematic on an async thread to avoid blocking the main thread
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                Schematic schem = SchematicLoader.load(schemFile.toPath());
+
+                // Collect all block placements, sorted bottom-to-top
+                List<BlockPlacement> placements = new ArrayList<>();
+                schem.blocks().forEach(pair -> {
+                    var pos = pair.left();
+                    var block = pair.right();
+                    String blockId = block.block();
+                    if (blockId == null || blockId.equals("minecraft:air")) return;
+
+                    // Build full block state string, rotating directional states if needed
+                    var states = block.states();
+                    Map<String, String> rotatedStates = new LinkedHashMap<>();
+                    if (states != null && !states.isEmpty()) {
+                        for (var entry : states.entrySet()) {
+                            String key = entry.getKey();
+                            String val = entry.getValue().toString();
+                            if (rotation != 0) {
+                                val = rotateBlockState(key, val, rotation);
+                            }
+                            rotatedStates.put(key, val);
+                        }
+                    }
+                    StringBuilder stateStr = new StringBuilder(blockId);
+                    if (!rotatedStates.isEmpty()) {
+                        stateStr.append("[");
+                        boolean first = true;
+                        for (var entry : rotatedStates.entrySet()) {
+                            if (!first) stateStr.append(",");
+                            stateStr.append(entry.getKey()).append("=").append(entry.getValue());
+                            first = false;
+                        }
+                        stateStr.append("]");
+                    }
+
+                    // Apply rotation to position
+                    int rx = pos.x, rz = pos.z;
+                    if (rotation == 90) { rx = -pos.z; rz = pos.x; }
+                    else if (rotation == 180) { rx = -pos.x; rz = -pos.z; }
+                    else if (rotation == 270) { rx = pos.z; rz = -pos.x; }
+
+                    placements.add(new BlockPlacement(
+                            originX + rx,
+                            originY + pos.y,
+                            originZ + rz,
+                            stateStr.toString()
+                    ));
+                });
+
+                // Sort bottom-to-top (by Y, then X, then Z)
+                placements.sort(Comparator.comparingInt((BlockPlacement p) -> p.y)
+                        .thenComparingInt(p -> p.x)
+                        .thenComparingInt(p -> p.z));
+
+                getLogger().info("Schematic " + blueprintId + ": " + placements.size()
+                        + " blocks, placing progressively at " + originX + "," + originY + "," + originZ);
+
+                // Start progressive placement on the main thread
+                Bukkit.getScheduler().runTask(this, () -> {
+                    World world = Bukkit.getWorlds().get(0); // overworld
+
+                    // Lightning strike at build start
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                            "summon minecraft:lightning_bolt " + originX + " " + originY + " " + originZ);
+
+                    // Start the progressive placer
+                    new SchematicPlacer(world, placements, blueprintId, originX, originY, originZ)
+                            .runTaskTimer(MinecraftGodPlugin.this, 5, 1); // 5 tick delay, then every tick
+                });
+
+            } catch (Exception e) {
+                getLogger().severe("Failed to load schematic " + blueprintId + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+
+    /** A single block to be placed as part of a schematic build. */
+    private record BlockPlacement(int x, int y, int z, String blockState) {}
+
+    /** Places schematic blocks progressively, bottom-to-top, for dramatic effect. */
+    private class SchematicPlacer extends BukkitRunnable {
+        private final World world;
+        private final Queue<BlockPlacement> queue;
+        private final String blueprintId;
+        private final int originX, originY, originZ;
+        private final int blocksPerTick;
+        private int totalPlaced = 0;
+        private final int totalBlocks;
+
+        SchematicPlacer(World world, List<BlockPlacement> placements, String blueprintId,
+                        int originX, int originY, int originZ) {
+            this.world = world;
+            this.queue = new ConcurrentLinkedQueue<>(placements);
+            this.blueprintId = blueprintId;
+            this.originX = originX;
+            this.originY = originY;
+            this.originZ = originZ;
+            this.totalBlocks = placements.size();
+            // Scale blocks per tick based on size: small builds faster, large builds slower
+            // Aim for ~5-15 seconds total build time
+            this.blocksPerTick = Math.max(10, Math.min(200, totalBlocks / 100));
+        }
+
+        @Override
+        public void run() {
+            int placed = 0;
+            while (!queue.isEmpty() && placed < blocksPerTick) {
+                BlockPlacement bp = queue.poll();
+                if (bp == null) break;
+                try {
+                    Block block = world.getBlockAt(bp.x, bp.y, bp.z);
+                    BlockData data = Bukkit.createBlockData(bp.blockState);
+                    block.setBlockData(data, false); // skip physics for performance
+                    placed++;
+                    totalPlaced++;
+                } catch (Exception e) {
+                    // Skip blocks with invalid block states (e.g. removed in newer versions)
+                    totalPlaced++;
+                }
+            }
+
+            // Occasional particle effects during construction
+            if (totalPlaced % 100 == 0 && totalPlaced > 0) {
+                world.spawnParticle(Particle.CLOUD,
+                        originX + 0.5, originY + (totalPlaced / (double) totalBlocks) * 20 + 0.5, originZ + 0.5,
+                        15, 3, 1, 3, 0.01);
+            }
+
+            if (queue.isEmpty()) {
+                this.cancel();
+                getLogger().info("Schematic " + blueprintId + " complete: " + totalPlaced + " blocks placed");
+                // Completion effects
+                world.spawnParticle(Particle.TOTEM_OF_UNDYING,
+                        originX + 0.5, originY + 5, originZ + 0.5,
+                        50, 3, 3, 3, 0.1);
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                        "playsound minecraft:ui.toast.challenge_complete master @a "
+                                + originX + " " + originY + " " + originZ + " 2 1");
+            }
+        }
+    }
+
+    // ─── Block State Rotation ─────────────────────────────────────────────────────
+
+    private static final Map<String, String> FACING_CW = Map.of(
+            "north", "east", "east", "south", "south", "west", "west", "north");
+
+    /**
+     * Rotate a single block state value for the given rotation (90, 180, 270).
+     * Handles: facing (N/E/S/W), axis (x/z swap), rotation (0-15 sign posts),
+     * and shape (inner/outer stair corners).
+     */
+    private static String rotateBlockState(String key, String value, int rotation) {
+        int steps = rotation / 90; // 1, 2, or 3 quarter-turns CW
+        switch (key) {
+            case "facing": {
+                String v = value.toLowerCase();
+                // Only rotate horizontal facings
+                if (v.equals("up") || v.equals("down")) return value;
+                for (int i = 0; i < steps; i++) {
+                    v = FACING_CW.getOrDefault(v, v);
+                }
+                return v;
+            }
+            case "axis": {
+                // x ↔ z on 90/270, both flip on 180 (back to same)
+                if (steps == 1 || steps == 3) {
+                    if (value.equals("x")) return "z";
+                    if (value.equals("z")) return "x";
+                }
+                return value;
+            }
+            case "rotation": {
+                // Sign/banner rotation: 0-15, each step = 4 increments CW
+                try {
+                    int r = Integer.parseInt(value);
+                    return String.valueOf((r + steps * 4) % 16);
+                } catch (NumberFormatException e) {
+                    return value;
+                }
+            }
+            default:
+                return value;
         }
     }
 

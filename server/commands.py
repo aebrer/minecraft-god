@@ -7,6 +7,8 @@ import json
 import logging
 import re
 
+from server.schematics import browse_schematics, inspect_schematic, build_schematic_command
+
 logger = logging.getLogger("minecraft-god")
 
 # Allowlisted command prefixes — anything not starting with one of these is dropped
@@ -44,7 +46,7 @@ VALID_MOBS = {
     "enderman", "witch", "phantom", "slime", "magma_cube", "blaze",
     "wither_skeleton", "piglin_brute", "hoglin", "ghast",
     # Neutral
-    "wolf", "iron_golem", "bee", "piglin", "enderman",
+    "wolf", "iron_golem", "bee", "piglin",
     # Passive
     "cow", "sheep", "pig", "chicken", "rabbit", "horse", "cat", "fox",
     "axolotl", "frog", "turtle",
@@ -75,6 +77,9 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dic
     commands = []
     for tc in tool_calls:
         try:
+            name = tc.function.name
+            args = json.loads(tc.function.arguments)
+            logger.info(f"[{source}] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
             result = _translate_one(tc, source)
             if result is None:
                 continue
@@ -84,6 +89,16 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dic
                 commands.append(result)
         except Exception:
             logger.exception(f"Failed to translate tool call: {tc.function.name}")
+
+    for cmd in commands:
+        if cmd.get("type") == "build_schematic":
+            logger.info(f"[{source}] => build_schematic: {cmd.get('blueprint_id')} at "
+                        f"{cmd.get('x')},{cmd.get('y')},{cmd.get('z')} rot={cmd.get('rotation')}")
+        else:
+            cmd_str = cmd.get("command", "?")
+            target = cmd.get("target_player")
+            logger.info(f"[{source}] => cmd: {cmd_str[:120]}" + (f" (target: {target})" if target else ""))
+
     return commands
 
 
@@ -124,6 +139,8 @@ def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | N
         return _place_block(args)
     elif name == "fill_blocks":
         return _fill_blocks(args)
+    elif name == "build_schematic":
+        return _build_schematic(args)
     else:
         logger.warning(f"Unknown tool call: {name}")
         return None
@@ -425,3 +442,40 @@ def _fill_blocks(args: dict) -> dict | None:
         mode = "replace"
 
     return _cmd(f"fill {x1} {y1} {z1} {x2} {y2} {z2} minecraft:{block} {mode}")
+
+
+def _build_schematic(args: dict) -> dict | None:
+    blueprint_id = args.get("blueprint_id", "")
+    x = _validate_coordinate(args.get("x"))
+    y = _validate_coordinate(args.get("y"))
+    z = _validate_coordinate(args.get("z"))
+    if x is None or y is None or z is None:
+        logger.warning(f"Blocked build_schematic with invalid coordinates: {args}")
+        return None
+    rotation = args.get("rotation", 0)
+    return build_schematic_command(blueprint_id, x, y, z, rotation)
+
+
+def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:
+    """Process browse/inspect schematic tool calls and return tool results.
+
+    Returns a dict mapping tool_call_id -> result text.
+    These are meant to be injected back into the conversation as tool results
+    for a follow-up LLM call.
+    """
+    results = {}
+    for tc in tool_calls:
+        name = tc.function.name
+        try:
+            args = json.loads(tc.function.arguments)
+        except (json.JSONDecodeError, AttributeError):
+            continue
+
+        if name == "browse_schematics":
+            category = args.get("category", "all")
+            results[tc.id] = browse_schematics(category)
+        elif name == "inspect_schematic":
+            blueprint_id = args.get("blueprint_id", "")
+            results[tc.id] = inspect_schematic(blueprint_id)
+
+    return results
