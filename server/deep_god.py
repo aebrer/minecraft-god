@@ -289,7 +289,7 @@ class DeepGod:
         except Exception:
             logger.exception("Deep God LLM call failed")
             self.conversation_history.pop()
-            return []
+            return None
 
         message = response.choices[0].message
 

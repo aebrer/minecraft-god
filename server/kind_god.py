@@ -436,7 +436,8 @@ class KindGod:
                 logger.exception("Kind God LLM call failed")
                 if turn == 0:
                     self.conversation_history.pop()
-                return commands
+                    return None  # signal failure on first call
+                return commands  # partial results from earlier turns
 
             message = response.choices[0].message
 
