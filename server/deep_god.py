@@ -255,11 +255,11 @@ class DeepGod:
             # Only trigger on ores if the relevant player is actually underground
             chance = max(chance, DEEP_GOD_ORE_CHANCE)
         if players_underground:
+            # Always at least a small chance when underground
+            chance = max(chance, DEEP_GOD_RANDOM_CHANCE)
+            # Night + underground is stronger (we don't have time-of-day yet,
+            # so this just acts as the "underground" baseline)
             chance = max(chance, DEEP_GOD_NIGHT_UNDERGROUND_CHANCE)
-
-        # Base random chance when anyone is underground
-        if players_underground and chance == 0:
-            chance = DEEP_GOD_RANDOM_CHANCE
 
         if chance > 0 and random.random() < chance:
             logger.info(f"Deep God triggered (chance was {chance:.0%})")

@@ -235,7 +235,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "sound": {"type": "string", "description": "Sound ID: ambient.weather.thunder, mob.wither.spawn, mob.ghast.scream, random.explode, note.pling"},
+                    "sound": {"type": "string", "description": "Sound ID: entity.wither.spawn, entity.ghast.scream, entity.lightning_bolt.thunder, entity.elder_guardian.curse, ambient.cave, block.note_block.pling, ui.toast.challenge_complete"},
                     "target_player": {"type": "string", "description": "Player name or omit for all"},
                 },
                 "required": ["sound"],
@@ -443,7 +443,31 @@ class KindGod:
             if message.content:
                 logger.info(f"[Kind God thinks] {message.content}")
 
-            # Add assistant response to history
+            if not message.tool_calls:
+                # No tool calls — record response
+                self.conversation_history.append({
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": None,
+                })
+                # If we browsed but never built, nudge for one more turn
+                if has_browsed and not has_built:
+                    logger.info(f"Kind God gave text-only response after browse (turn {turn + 1}), "
+                                f"nudging for build_schematic...")
+                    self.conversation_history.append({
+                        "role": "user",
+                        "content": "[SYSTEM] You browsed the schematic catalog but haven't placed "
+                                   "a build_schematic yet. Did you forget to construct it? Use "
+                                   "build_schematic now with the blueprint you selected.",
+                    })
+                    has_built = True  # prevent infinite nudging
+                    continue
+                break
+
+            # Cap tool calls — must match between history and result messages
+            tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_RESPONSE]
+
+            # Add assistant response to history (only capped tool calls)
             self.conversation_history.append({
                 "role": "assistant",
                 "content": message.content or "",
@@ -453,15 +477,9 @@ class KindGod:
                         "type": "function",
                         "function": {"name": tc.function.name, "arguments": tc.function.arguments},
                     }
-                    for tc in (message.tool_calls or [])
-                ] or None,
+                    for tc in tool_calls
+                ],
             })
-
-            if not message.tool_calls:
-                break
-
-            # Cap tool calls
-            tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_RESPONSE]
 
             # Check if any tool calls are browsing tools that need follow-up
             browsing_calls = [tc for tc in tool_calls if tc.function.name in BROWSING_TOOLS]
