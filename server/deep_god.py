@@ -194,8 +194,13 @@ class DeepGod:
         self.conversation_history: list[dict] = []
 
     def should_act(self, event_summary: str | None, player_status: dict | None,
-                   kind_god_action_count: int) -> bool:
-        """Determine whether the Deep God should act this cycle."""
+                   kind_god_action_count: int, praying_player: str | None = None) -> bool:
+        """Determine whether the Deep God should act this cycle.
+
+        When praying_player is set, only that player's position is considered
+        for location-based triggers (so a surface prayer isn't hijacked by
+        another player being underground).
+        """
         # Forced trigger: Kind God has acted too much
         if kind_god_action_count >= KIND_GOD_ACTION_THRESHOLD:
             logger.info(
@@ -207,13 +212,18 @@ class DeepGod:
         if not event_summary and not player_status:
             return False
 
-        # Check player positions
+        # Check player positions — when a specific player is praying,
+        # only consider THEIR position for Deep God triggers
         players_deep = False
         players_underground = False
         players_in_nether = False
 
         if player_status and player_status.get("players"):
             for p in player_status["players"]:
+                # If a prayer triggered this tick, only consider the praying player
+                if praying_player and p.get("name", "").lower() != praying_player.lower():
+                    continue
+
                 loc = p.get("location", {})
                 y = loc.get("y", 64)
                 dim = p.get("dimension", "")
@@ -241,11 +251,10 @@ class DeepGod:
             chance = max(chance, DEEP_GOD_DEEP_MINING_CHANCE)
         if players_in_nether:
             chance = max(chance, DEEP_GOD_NETHER_CHANCE)
-        if deep_ores_mined:
+        if deep_ores_mined and players_underground:
+            # Only trigger on ores if the relevant player is actually underground
             chance = max(chance, DEEP_GOD_ORE_CHANCE)
         if players_underground:
-            # Night + underground is stronger, but we don't have time-of-day info
-            # from the status beacon yet, so just use the underground chance
             chance = max(chance, DEEP_GOD_NIGHT_UNDERGROUND_CHANCE)
 
         # Base random chance when anyone is underground
