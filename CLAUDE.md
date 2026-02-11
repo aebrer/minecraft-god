@@ -26,23 +26,33 @@ server/
   llm.py          - shared OpenAI client pointed at z.ai
   events.py       - EventBuffer: accumulation + summarization
   commands.py     - tool call → Minecraft command (with allowlist, Java Edition syntax)
-  kind_god.py     - Kind God: prompt, tools, conversation history
+  schematics.py   - schematic catalog: browse/inspect/build for divine construction
+  kind_god.py     - Kind God: prompt, tools, conversation history, multi-turn tool use
   deep_god.py     - Deep God: prompt, restricted tools, trigger logic
+  herald_god.py   - Herald: poetic messenger in iambic pentameter
+  memory.py       - Kind God persistent memory (consolidation across sessions)
+  deaths.py       - DeathMemorial: persistent death records
   main.py         - FastAPI app, endpoints, dual-deity tick loop
 
 plugin/
   pom.xml                                    - Maven build file
-  src/main/java/.../MinecraftGodPlugin.java  - event listeners, HTTP client, command polling
+  src/main/java/.../MinecraftGodPlugin.java  - event listeners, HTTP client, command polling, schematic placer
   src/main/resources/plugin.yml              - plugin descriptor
 
 paper/                    - Paper server runtime (not tracked in git)
   paper-1.21.11-69.jar    - Paper server jar
   plugins/                - built plugin goes here
-  server.properties       - server config
+  server.properties       - server config (spawn-protection=0)
 
 scripts/
   start.sh          - launch both Paper + backend
   stop.sh           - graceful shutdown
+  schematics/       - GrabCraft → .schem data pipeline
+    scrape_grabcraft.py  - scraper + converter + catalog generator
+    blockmap_raw.csv     - block name mappings (GrabCraft → minecraft:id)
+    announce_restart.py  - RCON-based countdown for server restarts
+    data/                - raw blueprint cache (~500MB, gitignored)
+    schematics/          - converted .schem files + catalog.json
 ```
 
 ## Running
@@ -59,8 +69,20 @@ cd paper && java -Xms1G -Xmx2G -jar paper-1.21.11-69.jar --nogui  # terminal 2
 # Or via script:
 ./scripts/start.sh
 
-# Debug
-curl http://localhost:8000/status
+# Debug / Admin endpoints:
+curl http://localhost:8000/status          # god state, player positions, action counts
+curl http://localhost:8000/logs            # recent 50 god decisions + commands (ring buffer)
+curl -X POST http://localhost:8000/commands -H 'Content-Type: application/json' -d '[{"type":"build_schematic","blueprint_id":"medieval-blacksmith","x":10,"y":64,"z":10,"rotation":0}]'
+
+# Logs via journalctl:
+journalctl --user -u minecraft-god-backend --since "5 min ago" --no-pager   # backend logs
+journalctl --user -u minecraft-god-paper --since "5 min ago" --no-pager     # Paper server logs
+
+# Filter backend logs (cut noise):
+journalctl --user -u minecraft-god-backend --since "5 min ago" --no-pager | grep -v -E "(Unsupported upgrade|No supported WebSocket|GET /commands|POST /event)"
+
+# Filter for god decisions only:
+journalctl --user -u minecraft-god-backend --since "10 min ago" --no-pager | grep -E "(Kind God|Deep God|Prayer|browse|schematic|do_nothing|acted|Queued|Herald)"
 
 # RCON (requires mcrcon):
 mcrcon -H localhost -p <password> "whitelist list"
@@ -95,6 +117,28 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - Commands use Java Edition syntax: `minecraft:` namespaces, `effect give`, JSON text components
 - RCON is enabled on port 25575 for remote console access
 - Whitelist is enforced — add players with `whitelist add <username>` via RCON or console
+
+## Schematic Building System (Issue #15)
+- 2,139 blueprints across 30 categories scraped from GrabCraft
+- Pipeline: `scripts/schematics/scrape_grabcraft.py` (index → fetch → convert → catalog)
+- Sponge Schematic v2 (.schem) format, read by schematic4j in the Java plugin
+- Kind God has multi-turn tool use (max 5 turns): browse_schematics → inspect_schematic → build_schematic
+- Plugin places blocks progressively bottom-to-top with lightning, particles, and completion sound
+- `scripts/schematics/data/` is gitignored (raw blueprint cache, ~500MB)
+- To expand: `cd scripts/schematics && ../../../venv/bin/python3 scrape_grabcraft.py fetch --category <name> && ../../../venv/bin/python3 scrape_grabcraft.py convert && ../../../venv/bin/python3 scrape_grabcraft.py catalog`
+
+## Deep God Trigger Logic
+- Player-specific: when a prayer triggers a tick, only the praying player's position is checked
+- Triggers: below Y=0 (70%), Nether (50%), deep ore mining while underground (40%), underground at night (15%), random while underground (5%)
+- Forced trigger when Kind God action_count >= threshold (6)
+- On regular (non-prayer) ticks, all player positions are checked
+
+## Server Restart Procedure
+1. Run `scripts/schematics/announce_restart.py` for RCON countdown (30s/15s/5s/3/2/1)
+2. `systemctl --user restart minecraft-god-paper` (for Paper/plugin changes)
+3. `systemctl --user restart minecraft-god-backend` (for backend Python changes)
+- Backend restarts are safe without announcement (just a few seconds of god silence)
+- Paper restarts kick all players — always announce first
 
 ## Migration from Bedrock
 This project was originally built on Bedrock Dedicated Server with a JavaScript behavior pack.
