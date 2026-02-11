@@ -103,10 +103,14 @@ async def receive_event(event: GameEvent):
 
 @app.get("/commands")
 async def get_commands():
-    """Return pending commands for the behavior pack to execute, then clear the queue."""
+    """Return pending commands for the behavior pack to execute, then clear the queue.
+
+    Uses atomic swap to prevent duplicate delivery — even if two clients
+    poll simultaneously, only one will receive the commands.
+    """
     global command_queue
-    commands = command_queue.copy()
-    command_queue.clear()
+    commands = command_queue
+    command_queue = []
     return commands
 
 
