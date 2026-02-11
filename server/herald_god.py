@@ -148,7 +148,7 @@ class HeraldGod:
         except Exception:
             logger.exception("Herald LLM call failed")
             self.conversation_history.pop()
-            return []
+            return None
 
         message = response.choices[0].message
 

@@ -6,7 +6,9 @@ and queues commands for the behavior pack to execute.
 
 import asyncio
 import collections
+import json
 import logging
+import random
 import time
 
 from contextlib import asynccontextmanager
@@ -39,6 +41,88 @@ _tick_lock = asyncio.Lock()
 _ticks_since_consolidation: int = 0
 # Ring buffer of recent god decisions and commands for debugging
 _recent_logs: collections.deque = collections.deque(maxlen=50)
+
+# --- In-game feedback messages ---
+
+# Deep God prayer interception — thematic flavor text
+_INTERCEPT_GENERIC = [
+    "Your prayer sinks into the stone. Something else hears it.",
+    "The words do not rise. They fall.",
+    "A deeper voice answers.",
+    "Your prayer echoes... wrong.",
+    "The Kind God reaches for you — and stops.",
+    "Something ancient turns its attention toward you.",
+    "The silence after your prayer is not empty.",
+    "Your words dissolve into pressure and dark.",
+    "The prayer lands, but not where you sent it.",
+]
+
+_INTERCEPT_DEEP = [
+    "You pray from the deep places. The deep places answer.",
+    "At this depth, prayers do not rise. They are absorbed.",
+    "The stone around you hums. Your prayer was received.",
+    "Something beneath the bedrock acknowledges you.",
+]
+
+_INTERCEPT_NETHER = [
+    "Prayers do not travel here. But something listened.",
+    "In this place, the Kind God cannot reach you.",
+    "Your words burn before they reach the sky.",
+    "The Nether swallows your prayer whole. Something spits back.",
+]
+
+_INTERCEPT_THRESHOLD = [
+    "The boundary thins. Another presence answers.",
+    "The Kind God has spoken too much. The balance shifts.",
+    "Too many kindnesses. The deep corrects.",
+    "The weight of mercy tips the scales. Something else rises.",
+]
+
+
+def _pick_intercept_message(player_status: dict | None, praying_player: str | None,
+                            kind_god_action_count: int) -> str:
+    """Pick a context-appropriate interception message."""
+    from server.config import KIND_GOD_ACTION_THRESHOLD
+
+    # Check if this was a forced threshold trigger
+    if kind_god_action_count >= KIND_GOD_ACTION_THRESHOLD:
+        return random.choice(_INTERCEPT_THRESHOLD)
+
+    # Check praying player's location for context
+    if player_status and player_status.get("players") and praying_player:
+        for p in player_status["players"]:
+            if p.get("name", "").lower() != praying_player.lower():
+                continue
+            dim = p.get("dimension", "")
+            y = p.get("location", {}).get("y", 64)
+
+            if "nether" in dim.lower():
+                return random.choice(_INTERCEPT_NETHER)
+            if y < 0:
+                return random.choice(_INTERCEPT_DEEP)
+
+    return random.choice(_INTERCEPT_GENERIC)
+
+
+def _make_tellraw(message: str, target: str = "@a",
+                  color: str = "dark_purple", italic: bool = True) -> dict:
+    """Create a tellraw command dict for system/narrator messages."""
+    text_json = json.dumps([{"text": message, "color": color, "italic": italic}])
+    return {"command": f"tellraw {target} {text_json}"}
+
+
+def _god_failure_commands(god_name: str, target: str = "@a") -> list[dict]:
+    """Generate in-game feedback commands when a god's LLM call fails."""
+    messages = {
+        "kind": "The Kind God stirs, but cannot speak. Something is wrong.",
+        "deep": "The deep rumbles, but forms no words. An error in the stone.",
+        "herald": "The Herald opens their mouth, but silence falls. The verse is lost.",
+    }
+    msg = messages.get(god_name, f"A divine presence falters. ({god_name} error)")
+    return [
+        _make_tellraw(msg, target=target, color="red", italic=True),
+        {"command": f"playsound minecraft:entity.elder_guardian.curse master {target}"},
+    ]
 
 
 class GameEvent(BaseModel):
@@ -162,7 +246,9 @@ async def _herald_only_tick():
         if herald_god.should_act(event_summary):
             logger.info("=== THE HERALD SPEAKS ===")
             herald_commands = await herald_god.think(event_summary)
-            if herald_commands:
+            if herald_commands is None:
+                command_queue.extend(_god_failure_commands("herald"))
+            elif herald_commands:
                 command_queue.extend(herald_commands)
                 logger.info(f"Queued {len(herald_commands)} Herald commands")
 
@@ -207,11 +293,28 @@ async def _god_tick_inner(praying_player: str | None = None):
     # When a prayer triggered this tick, only consider the praying player's position
     tick_ts = time.strftime("%H:%M:%S")
     acting_god = "kind"
+    intercept_target = praying_player or "@a"
+
     if deep_god.should_act(event_summary, player_status, kind_god.action_count,
                            praying_player=praying_player):
         acting_god = "deep"
         logger.info("=== THE DEEP GOD STIRS ===")
+
+        # Send interception flavor text before the Deep God acts
+        if praying_player:
+            intercept_msg = _pick_intercept_message(
+                player_status, praying_player, kind_god.action_count)
+            command_queue.append(_make_tellraw(intercept_msg, target=intercept_target))
+            logger.info(f"Interception message to {intercept_target}: {intercept_msg}")
+
         commands = await deep_god.think(event_summary)
+
+        if commands is None:
+            # LLM call failed — notify players
+            command_queue.extend(_god_failure_commands("deep", target=intercept_target))
+            _recent_logs.append({"time": tick_ts, "god": "deep", "action": "error",
+                                 "prayer": praying_player})
+            commands = []
 
         # Notify the Kind God that the Other acted
         kind_god.notify_deep_god_acted()
@@ -220,6 +323,13 @@ async def _god_tick_inner(praying_player: str | None = None):
         kind_god.reset_action_count()
     else:
         commands = await kind_god.think(event_summary)
+
+        if commands is None:
+            # LLM call failed — notify players
+            command_queue.extend(_god_failure_commands("kind", target=intercept_target))
+            _recent_logs.append({"time": tick_ts, "god": "kind", "action": "error",
+                                 "prayer": praying_player})
+            commands = []
 
     if commands:
         command_queue.extend(commands)
@@ -240,7 +350,12 @@ async def _god_tick_inner(praying_player: str | None = None):
     if herald_god.should_act(event_summary):
         logger.info("=== THE HERALD SPEAKS ===")
         herald_commands = await herald_god.think(event_summary)
-        if herald_commands:
+
+        if herald_commands is None:
+            # LLM call failed — notify players
+            command_queue.extend(_god_failure_commands("herald"))
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "error"})
+        elif herald_commands:
             command_queue.extend(herald_commands)
             logger.info(f"Queued {len(herald_commands)} Herald commands")
             herald_summaries = [c.get("command", "?")[:80] for c in herald_commands]
