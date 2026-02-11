@@ -5,6 +5,7 @@ and queues commands for the behavior pack to execute.
 """
 
 import asyncio
+import collections
 import logging
 import time
 
@@ -36,6 +37,8 @@ last_prayer_time: float = 0
 _tick_task: asyncio.Task | None = None
 _tick_lock = asyncio.Lock()
 _ticks_since_consolidation: int = 0
+# Ring buffer of recent god decisions and commands for debugging
+_recent_logs: collections.deque = collections.deque(maxlen=50)
 
 
 class GameEvent(BaseModel):
@@ -91,19 +94,33 @@ async def receive_event(event: GameEvent):
                     logger.info("Herald invoked — triggering Herald-only tick")
                     asyncio.create_task(_herald_only_tick())
                 else:
-                    logger.info("Prayer detected — triggering immediate god tick")
-                    asyncio.create_task(_god_tick())
+                    praying_player = event_data.get("player", event_data.get("sender"))
+                    logger.info(f"Prayer detected from {praying_player} — triggering immediate god tick")
+                    asyncio.create_task(_god_tick(praying_player=praying_player))
 
     return {"status": "ok"}
 
 
 @app.get("/commands")
 async def get_commands():
-    """Return pending commands for the behavior pack to execute, then clear the queue."""
+    """Return pending commands for the behavior pack to execute, then clear the queue.
+
+    Uses atomic swap to prevent duplicate delivery — even if two clients
+    poll simultaneously, only one will receive the commands.
+    """
     global command_queue
-    commands = command_queue.copy()
-    command_queue.clear()
+    commands = command_queue
+    command_queue = []
     return commands
+
+
+@app.post("/commands")
+async def inject_commands(commands: list[dict]):
+    """Inject commands directly into the queue (for testing/admin use)."""
+    global command_queue
+    command_queue.extend(commands)
+    logger.info(f"Injected {len(commands)} commands via POST /commands")
+    return {"status": "ok", "queued": len(commands)}
 
 
 @app.get("/status")
@@ -122,6 +139,12 @@ async def get_status():
         "player_status": event_buffer.get_player_status(),
         "death_records": {p: len(d) for p, d in death_memorial.deaths.items()},
     }
+
+
+@app.get("/logs")
+async def get_logs():
+    """Recent god decisions and commands — ring buffer of last 50 ticks."""
+    return list(_recent_logs)
 
 
 async def _herald_only_tick():
@@ -157,7 +180,7 @@ async def _god_tick_loop():
             logger.exception("God tick failed")
 
 
-async def _god_tick():
+async def _god_tick(praying_player: str | None = None):
     """Run one cycle of divine deliberation."""
     global command_queue
 
@@ -167,10 +190,10 @@ async def _god_tick():
         return
 
     async with _tick_lock:
-        await _god_tick_inner()
+        await _god_tick_inner(praying_player=praying_player)
 
 
-async def _god_tick_inner():
+async def _god_tick_inner(praying_player: str | None = None):
     """Actual tick logic, called under lock."""
     global command_queue
 
@@ -181,7 +204,12 @@ async def _god_tick_inner():
     player_status = event_buffer.get_player_status()
 
     # Check if the Deep God should act
-    if deep_god.should_act(event_summary, player_status, kind_god.action_count):
+    # When a prayer triggered this tick, only consider the praying player's position
+    tick_ts = time.strftime("%H:%M:%S")
+    acting_god = "kind"
+    if deep_god.should_act(event_summary, player_status, kind_god.action_count,
+                           praying_player=praying_player):
+        acting_god = "deep"
         logger.info("=== THE DEEP GOD STIRS ===")
         commands = await deep_god.think(event_summary)
 
@@ -196,6 +224,17 @@ async def _god_tick_inner():
     if commands:
         command_queue.extend(commands)
         logger.info(f"Queued {len(commands)} commands")
+        cmd_summaries = []
+        for c in commands:
+            if c.get("type") == "build_schematic":
+                cmd_summaries.append(f"build_schematic({c.get('blueprint_id')} @ {c.get('x')},{c.get('y')},{c.get('z')})")
+            else:
+                cmd_summaries.append(c.get("command", "?")[:80])
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "acted",
+                             "commands": cmd_summaries, "prayer": praying_player})
+    else:
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "silent",
+                             "prayer": praying_player})
 
     # The Herald speaks independently — not silenced by either god
     if herald_god.should_act(event_summary):
@@ -204,6 +243,9 @@ async def _god_tick_inner():
         if herald_commands:
             command_queue.extend(herald_commands)
             logger.info(f"Queued {len(herald_commands)} Herald commands")
+            herald_summaries = [c.get("command", "?")[:80] for c in herald_commands]
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "spoke",
+                                 "commands": herald_summaries})
 
     # Memory consolidation check (only on full ticks, not herald-only)
     global _ticks_since_consolidation
