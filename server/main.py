@@ -202,10 +202,11 @@ async def _god_tick_inner(praying_player: str | None = None):
     # Check if the Deep God should act
     # When a prayer triggered this tick, only consider the praying player's position
     tick_ts = time.strftime("%H:%M:%S")
+    acting_god = "kind"
     if deep_god.should_act(event_summary, player_status, kind_god.action_count,
                            praying_player=praying_player):
+        acting_god = "deep"
         logger.info("=== THE DEEP GOD STIRS ===")
-        _recent_logs.append({"time": tick_ts, "god": "deep", "action": "stirs", "commands": []})
         commands = await deep_god.think(event_summary)
 
         # Notify the Kind God that the Other acted
@@ -225,10 +226,10 @@ async def _god_tick_inner(praying_player: str | None = None):
                 cmd_summaries.append(f"build_schematic({c.get('blueprint_id')} @ {c.get('x')},{c.get('y')},{c.get('z')})")
             else:
                 cmd_summaries.append(c.get("command", "?")[:80])
-        _recent_logs.append({"time": tick_ts, "god": "kind", "action": "acted",
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "acted",
                              "commands": cmd_summaries, "prayer": praying_player})
     else:
-        _recent_logs.append({"time": tick_ts, "god": "kind", "action": "silent",
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "silent",
                              "prayer": praying_player})
 
     # The Herald speaks independently — not silenced by either god
@@ -238,6 +239,9 @@ async def _god_tick_inner(praying_player: str | None = None):
         if herald_commands:
             command_queue.extend(herald_commands)
             logger.info(f"Queued {len(herald_commands)} Herald commands")
+            herald_summaries = [c.get("command", "?")[:80] for c in herald_commands]
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "spoke",
+                                 "commands": herald_summaries})
 
     # Memory consolidation check (only on full ticks, not herald-only)
     global _ticks_since_consolidation

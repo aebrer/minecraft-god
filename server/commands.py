@@ -46,7 +46,7 @@ VALID_MOBS = {
     "enderman", "witch", "phantom", "slime", "magma_cube", "blaze",
     "wither_skeleton", "piglin_brute", "hoglin", "ghast",
     # Neutral
-    "wolf", "iron_golem", "bee", "piglin", "enderman",
+    "wolf", "iron_golem", "bee", "piglin",
     # Passive
     "cow", "sheep", "pig", "chicken", "rabbit", "horse", "cat", "fox",
     "axolotl", "frog", "turtle",

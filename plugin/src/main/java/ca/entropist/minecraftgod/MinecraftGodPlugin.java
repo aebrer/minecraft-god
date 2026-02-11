@@ -23,6 +23,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -531,13 +533,24 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                     String blockId = block.block();
                     if (blockId == null || blockId.equals("minecraft:air")) return;
 
-                    // Build full block state string
-                    StringBuilder stateStr = new StringBuilder(blockId);
+                    // Build full block state string, rotating directional states if needed
                     var states = block.states();
+                    Map<String, String> rotatedStates = new LinkedHashMap<>();
                     if (states != null && !states.isEmpty()) {
+                        for (var entry : states.entrySet()) {
+                            String key = entry.getKey();
+                            String val = entry.getValue().toString();
+                            if (rotation != 0) {
+                                val = rotateBlockState(key, val, rotation);
+                            }
+                            rotatedStates.put(key, val);
+                        }
+                    }
+                    StringBuilder stateStr = new StringBuilder(blockId);
+                    if (!rotatedStates.isEmpty()) {
                         stateStr.append("[");
                         boolean first = true;
-                        for (var entry : states.entrySet()) {
+                        for (var entry : rotatedStates.entrySet()) {
                             if (!first) stateStr.append(",");
                             stateStr.append(entry.getKey()).append("=").append(entry.getValue());
                             first = false;
@@ -545,7 +558,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                         stateStr.append("]");
                     }
 
-                    // Apply rotation
+                    // Apply rotation to position
                     int rx = pos.x, rz = pos.z;
                     if (rotation == 90) { rx = -pos.z; rz = pos.x; }
                     else if (rotation == 180) { rx = -pos.x; rz = -pos.z; }
@@ -650,6 +663,50 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                         "playsound minecraft:ui.toast.challenge_complete master @a "
                                 + originX + " " + originY + " " + originZ + " 2 1");
             }
+        }
+    }
+
+    // ─── Block State Rotation ─────────────────────────────────────────────────────
+
+    private static final Map<String, String> FACING_CW = Map.of(
+            "north", "east", "east", "south", "south", "west", "west", "north");
+
+    /**
+     * Rotate a single block state value for the given rotation (90, 180, 270).
+     * Handles: facing (N/E/S/W), axis (x/z swap), rotation (0-15 sign posts),
+     * and shape (inner/outer stair corners).
+     */
+    private static String rotateBlockState(String key, String value, int rotation) {
+        int steps = rotation / 90; // 1, 2, or 3 quarter-turns CW
+        switch (key) {
+            case "facing": {
+                String v = value.toLowerCase();
+                // Only rotate horizontal facings
+                if (v.equals("up") || v.equals("down")) return value;
+                for (int i = 0; i < steps; i++) {
+                    v = FACING_CW.getOrDefault(v, v);
+                }
+                return v;
+            }
+            case "axis": {
+                // x ↔ z on 90/270, both flip on 180 (back to same)
+                if (steps == 1 || steps == 3) {
+                    if (value.equals("x")) return "z";
+                    if (value.equals("z")) return "x";
+                }
+                return value;
+            }
+            case "rotation": {
+                // Sign/banner rotation: 0-15, each step = 4 increments CW
+                try {
+                    int r = Integer.parseInt(value);
+                    return String.valueOf((r + steps * 4) % 16);
+                } catch (NumberFormatException e) {
+                    return value;
+                }
+            }
+            default:
+                return value;
         }
     }
 
