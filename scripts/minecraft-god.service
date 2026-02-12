@@ -1,9 +1,10 @@
 [Unit]
-Description=Minecraft God Server (BDS + LLM Backend)
+Description=Minecraft God Server (Paper MC + LLM Backend)
 After=network.target
 
 [Service]
 Type=forking
+# Update these paths for your installation
 User=%i
 WorkingDirectory=/path/to/minecraft-god
 ExecStart=/path/to/minecraft-god/scripts/start.sh

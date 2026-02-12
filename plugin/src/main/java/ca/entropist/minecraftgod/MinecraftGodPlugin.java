@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Listens to game events and forwards them to the Python backend via HTTP.
  * Polls for commands from the backend and executes them in-game.
  *
- * Port of the Bedrock behavior pack (scripts/main.js) to Paper/Java.
+ * Event listeners and HTTP bridge for the Paper server.
  */
 @SuppressWarnings("deprecation") // AsyncPlayerChatEvent — still functional, simpler than Adventure chat API
 public class MinecraftGodPlugin extends JavaPlugin implements Listener {

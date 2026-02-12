@@ -2,9 +2,6 @@
 
 A Paper MC server (Java Edition) with two LLM deities — one kind, one ancient — watching over players.
 
-> **Note**: Originally built on Bedrock Dedicated Server with a JavaScript behavior pack.
-> Ported to Paper MC + Java plugin on 2026-02-09.
-
 ## The Concept
 
 **Two gods. One world. One set of Rules.**
@@ -121,7 +118,7 @@ A Java plugin (`plugin/`) using the Paper/Bukkit event API and `java.net.http.Ht
 
 ### Endpoints
 
-- `POST /event` — receives game events from behavior pack, appends to buffer, returns 200
+- `POST /event` — receives game events from the Paper plugin, appends to buffer, returns 200
 - `GET /commands` — returns pending command queue as JSON array, clears queue
 - `GET /status` — debug: current event buffer, god state, last action time
 
@@ -336,7 +333,7 @@ minecraft-god/
     plugins/minecraft-god-plugin.jar
     server.properties, world/, etc.
 
-  server/                            ← Python backend (unchanged)
+  server/                            ← Python backend
     __init__.py
     main.py                 ← FastAPI app, endpoints, background tick loop
     kind_god.py             ← Kind God: system prompt, tools, conversation history
@@ -346,49 +343,10 @@ minecraft-god/
     commands.py             ← tool call → Minecraft command translation (Java Edition syntax)
     config.py               ← settings from .env + defaults
 
-  behavior_pack/            ← legacy Bedrock behavior pack (kept for reference)
-    manifest.json
-    scripts/main.js
-
   scripts/
     start.sh                ← launch Paper + Python backend
     stop.sh                 ← graceful shutdown
 ```
-
-## MVP Plan (Build Order)
-
-### Phase 1: Core Loop (Kind God only)
-Get a single event (chat) flowing through the whole system and the Kind God responding.
-
-1. Write the behavior pack (`manifest.json` + `main.js`) — subscribe to `chatSend` only, POST to localhost:8000
-2. Write the Python backend — FastAPI with `/event` and `/commands` endpoints
-3. Wire up z.ai — Kind God system prompt + `send_message` tool only
-4. Test: player says something in chat → Kind God responds via /title or /say
-
-### Phase 2: More Events + Tools
-5. Add death, join, leave, spawn events to behavior pack
-6. Add player status beacon (including Y coordinate — critical for Deep God triggers)
-7. Add tools: `summon_mob`, `change_weather`, `give_effect`, `strike_lightning`
-8. Add event batching/aggregation
-
-### Phase 3: The Deep God
-9. Add block break/place events (with aggregation — track Y level and block type)
-10. Implement Deep God system prompt and restricted tool set
-11. Implement trigger conditions (Y level, ore mining, Nether, Kind God action counter)
-12. Wire the dual-deity tick: check triggers → route to correct god → silence the other
-13. Add "The Other acted" notes to Kind God conversation history
-
-### Phase 4: Full Feature Set
-14. Add remaining Kind God tools: `give_item`, `clear_item`, `teleport_player`, `set_time`, `set_difficulty`, `assign_mission`
-15. Add combat events
-16. Add chat fast-path (immediate response to prayers)
-17. Polish both god personalities, tune intervals and trigger thresholds
-
-### Phase 5: QoL
-18. `install_bds.sh` and `configure_bds.sh` setup scripts
-19. systemd service file
-20. Pre-made world with Beta APIs enabled
-21. README with setup instructions
 
 ## Security
 

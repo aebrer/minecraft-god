@@ -39,7 +39,7 @@ When updating memories:
 
 Respond with ONLY a JSON array of memory strings. No other text, no markdown, \
 no code fences. Example:
-["aebrer is a careful builder who stays on the surface.", "PLAYER_REDACTED prays often."]"""
+["Steve is a careful builder who stays on the surface.", "Alex prays often."]"""
 
 
 class KindGodMemory:

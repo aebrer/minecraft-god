@@ -77,8 +77,8 @@ Create the `mods` folder if it doesn't exist.
 
 ## Step 6: Join the Server
 
-- Add server: `your-server.example.com:25565`
-- Or direct connect to `your-server.example.com`
+- Add server: `your-server-ip:25565`
+- Or direct connect to your server's IP/domain
 
 ---
 
