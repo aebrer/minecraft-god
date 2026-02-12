@@ -107,6 +107,13 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 
 ## HARD RULES
 - **NEVER use sudo.** All operations must run as the current user. No exceptions.
+- **This is a PUBLIC repository.** All commits, issues, PRs, and comments are visible to the world. Before any GitHub action (commit, push, issue creation, PR creation, commenting), double-check that the content does not contain:
+  - Player gamertags or real names
+  - Server domains, IP addresses, or machine hostnames
+  - RCON passwords, API keys, or any credentials
+  - Paths containing usernames (e.g. `/home/username/`)
+  - Any other personally identifiable information
+- **Always confirm with the human operator** before pushing commits, creating/editing issues, creating/editing PRs, or any other action visible on GitHub. The cost of pausing to ask is low; the cost of leaking private info to a public repo is high.
 
 ## Important Notes
 - The `paper/` directory runtime files are not tracked in git (jar, world data, configs)
