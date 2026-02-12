@@ -8519,1064 +8519,6 @@
       ],
       "count": 58
     },
-    "machines": {
-      "blueprints": [
-        {
-          "id": "3x3-spiral-door",
-          "name": "3x3 Spiral Door",
-          "description": "redstone, working mechanism, machine, 3x3 spiral door, working mechanism, 3x3 spiral door",
-          "dimensions": {
-            "w": 9,
-            "h": 10,
-            "d": 12
-          },
-          "block_count": 193,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "3x3 spiral door",
-            "working mechanism",
-            "3x3 spiral door"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "3x3-spiral-door.schem"
-        },
-        {
-          "id": "awesome-armour-display",
-          "name": "Armor Display",
-          "description": "redstone, working mechanism, machine, armour display, working mechanism, armour display",
-          "dimensions": {
-            "w": 14,
-            "h": 8,
-            "d": 7
-          },
-          "block_count": 416,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "armour display",
-            "working mechanism",
-            "armour display"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "awesome-armour-display.schem"
-        },
-        {
-          "id": "armour-stand-swapper",
-          "name": "Armour Stand Swapper",
-          "description": "redstone, machine, armour swapper, armour swapper",
-          "dimensions": {
-            "w": 3,
-            "h": 11,
-            "d": 5
-          },
-          "block_count": 113,
-          "tags": [
-            "redstone",
-            "machine",
-            "armour swapper",
-            "armour swapper"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "armour-stand-swapper.schem"
-        },
-        {
-          "id": "hipster-armour-storage",
-          "name": "Armour Storage",
-          "description": "redstone, machine, armour storage, armour storage",
-          "dimensions": {
-            "w": 5,
-            "h": 7,
-            "d": 6
-          },
-          "block_count": 122,
-          "tags": [
-            "redstone",
-            "machine",
-            "armour storage",
-            "armour storage"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "hipster-armour-storage.schem"
-        },
-        {
-          "id": "auto-armour-station",
-          "name": "Auto Armour Station",
-          "description": "redstone, working mechanism, machine, armour station, working mechanism, armour station",
-          "dimensions": {
-            "w": 9,
-            "h": 7,
-            "d": 8
-          },
-          "block_count": 342,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "armour station",
-            "working mechanism",
-            "armour station"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "auto-armour-station.schem"
-        },
-        {
-          "id": "automatic-melon-farm",
-          "name": "Automatic Melon Farm",
-          "description": "redstone, working mechanism, machine, melon farm, working mechanism, melon farm",
-          "dimensions": {
-            "w": 17,
-            "h": 8,
-            "d": 4
-          },
-          "block_count": 186,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "melon farm",
-            "working mechanism",
-            "melon farm"
-          ],
-          "author": "Mumbo Jumbo",
-          "skill_level": 1,
-          "file": "automatic-melon-farm.schem"
-        },
-        {
-          "id": "automatic-melon-pumpkin-farm",
-          "name": "Automatic Melon and Pumpkin Farm",
-          "description": "redstone, working mechanism, machine, melon/pumpkin farm, working mechanism, melon/pumpkin farm",
-          "dimensions": {
-            "w": 19,
-            "h": 9,
-            "d": 5
-          },
-          "block_count": 482,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "melon/pumpkin farm",
-            "working mechanism",
-            "melon/pumpkin farm"
-          ],
-          "author": "Fed X Gaming",
-          "skill_level": 1,
-          "file": "automatic-melon-pumpkin-farm.schem"
-        },
-        {
-          "id": "automatic-mushroom-farm",
-          "name": "Automatic Mushroom Farm",
-          "description": "redstone, working mechanism, machine, mushroom farm, working mechanism, mushroom farm",
-          "dimensions": {
-            "w": 12,
-            "h": 4,
-            "d": 11
-          },
-          "block_count": 331,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "mushroom farm",
-            "working mechanism",
-            "mushroom farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "automatic-mushroom-farm.schem"
-        },
-        {
-          "id": "automatic-wheat-farm",
-          "name": "Automatic Wheat Farm",
-          "description": "redstone, working mechanism, machine, wheat farm, working mechanism, wheat farm",
-          "dimensions": {
-            "w": 9,
-            "h": 7,
-            "d": 16
-          },
-          "block_count": 322,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "wheat farm",
-            "working mechanism",
-            "wheat farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "automatic-wheat-farm.schem"
-        },
-        {
-          "id": "brewing-station",
-          "name": "Brewing Station",
-          "description": "redstone, machine, brewing station, brewing station",
-          "dimensions": {
-            "w": 16,
-            "h": 3,
-            "d": 3
-          },
-          "block_count": 106,
-          "tags": [
-            "redstone",
-            "machine",
-            "brewing station",
-            "brewing station"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "brewing-station.schem"
-        },
-        {
-          "id": "brewing-station-2",
-          "name": "Brewing Station 2",
-          "description": "redstone, machine, brewing station, brewing station",
-          "dimensions": {
-            "w": 9,
-            "h": 5,
-            "d": 6
-          },
-          "block_count": 157,
-          "tags": [
-            "redstone",
-            "machine",
-            "brewing station",
-            "brewing station"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "brewing-station-2.schem"
-        },
-        {
-          "id": "brewing-station-3",
-          "name": "Brewing Station 3",
-          "description": "redstone, machine, brewing station, brewing station",
-          "dimensions": {
-            "w": 11,
-            "h": 5,
-            "d": 11
-          },
-          "block_count": 378,
-          "tags": [
-            "redstone",
-            "machine",
-            "brewing station",
-            "brewing station"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "brewing-station-3.schem"
-        },
-        {
-          "id": "carousel",
-          "name": "Carousel",
-          "description": "mechanism, working mechanism, carousel, machine, working mechanism",
-          "dimensions": {
-            "w": 15,
-            "h": 9,
-            "d": 11
-          },
-          "block_count": 779,
-          "tags": [
-            "mechanism",
-            "working mechanism",
-            "carousel",
-            "machine",
-            "working mechanism"
-          ],
-          "author": "MagmaMusen",
-          "skill_level": 1,
-          "file": "carousel.schem"
-        },
-        {
-          "id": "charcoal-factory",
-          "name": "Charcoal Factory",
-          "description": "redstone, working mechanism, machine, charcoal factory, working mechanism, charcoal factory",
-          "dimensions": {
-            "w": 4,
-            "h": 4,
-            "d": 10
-          },
-          "block_count": 57,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "charcoal factory",
-            "working mechanism",
-            "charcoal factory"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "charcoal-factory.schem"
-        },
-        {
-          "id": "chicken-cooker-2000",
-          "name": "Chicken Cooker",
-          "description": "redstone, machine, chicken cooker, chicken cooker",
-          "dimensions": {
-            "w": 9,
-            "h": 10,
-            "d": 17
-          },
-          "block_count": 401,
-          "tags": [
-            "redstone",
-            "machine",
-            "chicken cooker",
-            "chicken cooker"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "chicken-cooker-2000.schem"
-        },
-        {
-          "id": "ultimate-chicken-farm",
-          "name": "Chicken Farm",
-          "description": "redstone, working mechanism, machine, chicken farm, working mechanism, chicken farm",
-          "dimensions": {
-            "w": 12,
-            "h": 6,
-            "d": 6
-          },
-          "block_count": 152,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "chicken farm",
-            "working mechanism",
-            "chicken farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "ultimate-chicken-farm.schem"
-        },
-        {
-          "id": "cool-chicken-farm",
-          "name": "Chicken Farm  2",
-          "description": "redstone, working mechanism, machine, chicken farm, working mechanism, chicken farm",
-          "dimensions": {
-            "w": 7,
-            "h": 9,
-            "d": 6
-          },
-          "block_count": 152,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "chicken farm",
-            "working mechanism",
-            "chicken farm"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "cool-chicken-farm.schem"
-        },
-        {
-          "id": "cobblestone-generator",
-          "name": "Cobblestone Generator",
-          "description": "redstone, working mechanism, machine, cobblestone generator, working mechanism, cobblestone generator",
-          "dimensions": {
-            "w": 6,
-            "h": 1,
-            "d": 6
-          },
-          "block_count": 32,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "cobblestone generator",
-            "working mechanism",
-            "cobblestone generator"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "cobblestone-generator.schem"
-        },
-        {
-          "id": "item-frame-combination-lock",
-          "name": "Combination Locked Door",
-          "description": "redstone, working mechanism, machine, combination lock, working mechanism, combination lock",
-          "dimensions": {
-            "w": 11,
-            "h": 4,
-            "d": 12
-          },
-          "block_count": 247,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "combination lock",
-            "working mechanism",
-            "combination lock"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "item-frame-combination-lock.schem"
-        },
-        {
-          "id": "cow-farm-grill",
-          "name": "Cow Farm &amp; Grill",
-          "description": "redstone, working mechanism, machine, cow farm, grill, working mechanism, cow farm",
-          "dimensions": {
-            "w": 3,
-            "h": 4,
-            "d": 9
-          },
-          "block_count": 67,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "cow farm",
-            "grill",
-            "working mechanism",
-            "cow farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "cow-farm-grill.schem"
-        },
-        {
-          "id": "fish-farm",
-          "name": "Fish Farm",
-          "description": "redstone, working mechanism, machine, fish farm, working mechanism, fish farm",
-          "dimensions": {
-            "w": 4,
-            "h": 5,
-            "d": 7
-          },
-          "block_count": 77,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "fish farm",
-            "working mechanism",
-            "fish farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "fish-farm.schem"
-        },
-        {
-          "id": "hyper-flower-farm-dye-farm",
-          "name": "Flower Farm",
-          "description": "redstone, working mechanism, machine, flower farm, dye farm, working mechanism, flower farm, dye farm",
-          "dimensions": {
-            "w": 3,
-            "h": 4,
-            "d": 5
-          },
-          "block_count": 34,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "flower farm",
-            "dye farm",
-            "working mechanism",
-            "flower farm",
-            "dye farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "hyper-flower-farm-dye-farm.schem"
-        },
-        {
-          "id": "flower-and-seed-generato",
-          "name": "Flower and Seed Generator",
-          "description": "redstone, working mechanism, machine, flower generator, seed generator, working mechanism, flower generator, seed generator",
-          "dimensions": {
-            "w": 9,
-            "h": 5,
-            "d": 7
-          },
-          "block_count": 225,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "flower generator",
-            "seed generator",
-            "working mechanism",
-            "flower generator",
-            "seed generator"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "flower-and-seed-generato.schem"
-        },
-        {
-          "id": "fully-automatic-melon-farm",
-          "name": "Fully Automatic Melon Farm",
-          "description": "redstone, working mechanism, machine, fully automatic melon farm, melon farm, working mechanism, fully automatic melon farm, melon farm",
-          "dimensions": {
-            "w": 7,
-            "h": 5,
-            "d": 6
-          },
-          "block_count": 118,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "fully automatic melon farm",
-            "melon farm",
-            "working mechanism",
-            "fully automatic melon farm",
-            "melon farm"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "fully-automatic-melon-farm.schem"
-        },
-        {
-          "id": "impossible-arrow-minigame",
-          "name": "Impossible Arrow Minigame",
-          "description": "redstone, machine, mini game, impossible arrow, mini game, impossible arrow",
-          "dimensions": {
-            "w": 3,
-            "h": 7,
-            "d": 12
-          },
-          "block_count": 140,
-          "tags": [
-            "redstone",
-            "machine",
-            "mini game",
-            "impossible arrow",
-            "mini game",
-            "impossible arrow"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "impossible-arrow-minigame.schem"
-        },
-        {
-          "id": "industrial-furnace-system",
-          "name": "Industrial Furnace System",
-          "description": "redstone, working mechanism, machine, industrial furnace system, working mechanism, industrial furnace system",
-          "dimensions": {
-            "w": 7,
-            "h": 6,
-            "d": 15
-          },
-          "block_count": 374,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "industrial furnace system",
-            "working mechanism",
-            "industrial furnace system"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "industrial-furnace-system.schem"
-        },
-        {
-          "id": "simple-infinite-iron-golem-farm",
-          "name": "Iron Golem Farm",
-          "description": "redstone, working mechanism, machine, golem farm, working mechanism, golem farm",
-          "dimensions": {
-            "w": 17,
-            "h": 17,
-            "d": 6
-          },
-          "block_count": 396,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "golem farm",
-            "working mechanism",
-            "golem farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "simple-infinite-iron-golem-farm.schem"
-        },
-        {
-          "id": "cool-item-storage-w-hoppers",
-          "name": "Item Storage with Hoppers",
-          "description": "redstone, working mechanism, machine, mechanisms, item storage, working mechanism, mechanisms, item storage",
-          "dimensions": {
-            "w": 15,
-            "h": 5,
-            "d": 6
-          },
-          "block_count": 292,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "mechanisms",
-            "item storage",
-            "working mechanism",
-            "mechanisms",
-            "item storage"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "cool-item-storage-w-hoppers.schem"
-        },
-        {
-          "id": "item-transportation-system",
-          "name": "Item Transportation System",
-          "description": "redstone, working mechanism, machine, mechanisms, item transportation system, working mechanism, mechanisms, item transportation system",
-          "dimensions": {
-            "w": 5,
-            "h": 7,
-            "d": 15
-          },
-          "block_count": 349,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "mechanisms",
-            "item transportation system",
-            "working mechanism",
-            "mechanisms",
-            "item transportation system"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "item-transportation-system.schem"
-        },
-        {
-          "id": "jukebox",
-          "name": "Jukebox",
-          "description": "jukebox, redstone, working mechanism, machine, working mechanism",
-          "dimensions": {
-            "w": 17,
-            "h": 6,
-            "d": 4
-          },
-          "block_count": 163,
-          "tags": [
-            "jukebox",
-            "redstone",
-            "working mechanism",
-            "machine",
-            "working mechanism"
-          ],
-          "author": "xisumavoid",
-          "skill_level": 1,
-          "file": "jukebox.schem"
-        },
-        {
-          "id": "kanos-harbour-crane",
-          "name": "Kanos Harbour Crane",
-          "description": "harbour, crane, machine",
-          "dimensions": {
-            "w": 28,
-            "h": 21,
-            "d": 9
-          },
-          "block_count": 676,
-          "tags": [
-            "harbour",
-            "crane",
-            "machine"
-          ],
-          "author": "AngryBuild",
-          "skill_level": 1,
-          "file": "kanos-harbour-crane.schem"
-        },
-        {
-          "id": "mini-gambling-machine",
-          "name": "Mini Gambling Machine",
-          "description": "working mechanism, machine, game, gambling, working mechanism",
-          "dimensions": {
-            "w": 12,
-            "h": 7,
-            "d": 12
-          },
-          "block_count": 530,
-          "tags": [
-            "working mechanism",
-            "machine",
-            "game",
-            "gambling",
-            "working mechanism"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "mini-gambling-machine.schem"
-        },
-        {
-          "id": "modern-wind-turbine",
-          "name": "Modern Wind Turbine",
-          "description": "wind turbine, future, machine, wind, turbine, modern",
-          "dimensions": {
-            "w": 15,
-            "h": 82,
-            "d": 15
-          },
-          "block_count": 825,
-          "tags": [
-            "wind turbine",
-            "future",
-            "machine",
-            "wind",
-            "turbine",
-            "modern"
-          ],
-          "author": "MCFRArchitect",
-          "skill_level": 1,
-          "file": "modern-wind-turbine.schem"
-        },
-        {
-          "id": "nano-farm",
-          "name": "Nano Farm",
-          "description": "redstone, working mechanism, machine, nano farm, working mechanism, nano farm",
-          "dimensions": {
-            "w": 3,
-            "h": 4,
-            "d": 4
-          },
-          "block_count": 28,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "nano farm",
-            "working mechanism",
-            "nano farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "nano-farm.schem"
-        },
-        {
-          "id": "password-locked-door",
-          "name": "Password Locked Door",
-          "description": "redstone, working mechanism, machine, password locked door, working mechanism, password locked door",
-          "dimensions": {
-            "w": 9,
-            "h": 6,
-            "d": 3
-          },
-          "block_count": 105,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "password locked door",
-            "working mechanism",
-            "password locked door"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "password-locked-door.schem"
-        },
-        {
-          "id": "password-locked-3x3-piston-door",
-          "name": "Password Locked Door 2",
-          "description": "redstone, piston, working mechanism, machine, password locked door, working mechanism, password locked door",
-          "dimensions": {
-            "w": 12,
-            "h": 10,
-            "d": 7
-          },
-          "block_count": 379,
-          "tags": [
-            "redstone",
-            "piston",
-            "working mechanism",
-            "machine",
-            "password locked door",
-            "working mechanism",
-            "password locked door"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "password-locked-3x3-piston-door.schem"
-        },
-        {
-          "id": "potato-carrot-farm",
-          "name": "Potato &amp; Carrot Farm",
-          "description": "redstone, working mechanism, machine, carrot farm, potato farm, working mechanism, carrot farm, potato farm",
-          "dimensions": {
-            "w": 13,
-            "h": 11,
-            "d": 21
-          },
-          "block_count": 1035,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "carrot farm",
-            "potato farm",
-            "working mechanism",
-            "carrot farm",
-            "potato farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "potato-carrot-farm.schem"
-        },
-        {
-          "id": "roman-wooden-crane",
-          "name": "Roman Wooden Crane",
-          "description": "roman, crane, wooden crane, machine",
-          "dimensions": {
-            "w": 9,
-            "h": 6,
-            "d": 19
-          },
-          "block_count": 96,
-          "tags": [
-            "roman",
-            "crane",
-            "wooden crane",
-            "machine"
-          ],
-          "author": "dionp3838",
-          "skill_level": 1,
-          "file": "roman-wooden-crane.schem"
-        },
-        {
-          "id": "russian-roulette",
-          "name": "Russian Roulette",
-          "description": "redstone, machine, game, russian roulette, russian roulette",
-          "dimensions": {
-            "w": 9,
-            "h": 7,
-            "d": 13
-          },
-          "block_count": 400,
-          "tags": [
-            "redstone",
-            "machine",
-            "game",
-            "russian roulette",
-            "russian roulette"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "russian-roulette.schem"
-        },
-        {
-          "id": "secret-staircase-room",
-          "name": "Secret Staircase Room",
-          "description": "redstone, working mechanism, machine, mechanisms, secret staircase room, secret passageways, working mechanism, mechanisms, secret staircase room, secret passageways",
-          "dimensions": {
-            "w": 6,
-            "h": 5,
-            "d": 5
-          },
-          "block_count": 108,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "mechanisms",
-            "secret staircase room",
-            "secret passageways",
-            "working mechanism",
-            "mechanisms",
-            "secret staircase room",
-            "secret passageways"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "secret-staircase-room.schem"
-        },
-        {
-          "id": "semi-automated-furnace",
-          "name": "Semi-Automated Furnace",
-          "description": "furnace, redstone, working mechanism, machine, semi-automated furnace, working mechanism, semi-automated furnace",
-          "dimensions": {
-            "w": 5,
-            "h": 6,
-            "d": 5
-          },
-          "block_count": 73,
-          "tags": [
-            "furnace",
-            "redstone",
-            "working mechanism",
-            "machine",
-            "semi-automated furnace",
-            "working mechanism",
-            "semi-automated furnace"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "semi-automated-furnace.schem"
-        },
-        {
-          "id": "simplest-slime-elevator",
-          "name": "Slime Elevator",
-          "description": "redstone, working mechanism, machine, elevator, slime elevator, working mechanism, slime elevator",
-          "dimensions": {
-            "w": 7,
-            "h": 10,
-            "d": 4
-          },
-          "block_count": 133,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "elevator",
-            "slime elevator",
-            "working mechanism",
-            "slime elevator"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "simplest-slime-elevator.schem"
-        },
-        {
-          "id": "small-harbour-crane",
-          "name": "Small Harbour Crane",
-          "description": "crane, wooden crane, harbour, machine",
-          "dimensions": {
-            "w": 5,
-            "h": 10,
-            "d": 11
-          },
-          "block_count": 84,
-          "tags": [
-            "crane",
-            "wooden crane",
-            "harbour",
-            "machine"
-          ],
-          "author": "AngryBuild",
-          "skill_level": 1,
-          "file": "small-harbour-crane.schem"
-        },
-        {
-          "id": "smart-animal-cooker",
-          "name": "Smart Animal Cooker",
-          "description": "redstone, working mechanism, machine, chicken cooker, smart animal cooker, working mechanism, chicken cooker, smart animal cooker",
-          "dimensions": {
-            "w": 11,
-            "h": 6,
-            "d": 6
-          },
-          "block_count": 200,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "chicken cooker",
-            "smart animal cooker",
-            "working mechanism",
-            "chicken cooker",
-            "smart animal cooker"
-          ],
-          "author": "xisumavoid",
-          "skill_level": 1,
-          "file": "smart-animal-cooker.schem"
-        },
-        {
-          "id": "sugarcane-farm",
-          "name": "Sugarcane Farm",
-          "description": "redstone, working mechanism, machine, sugarcane farm, working mechanism, sugarcane farm",
-          "dimensions": {
-            "w": 13,
-            "h": 10,
-            "d": 6
-          },
-          "block_count": 664,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "sugarcane farm",
-            "working mechanism",
-            "sugarcane farm"
-          ],
-          "author": "NimsTV",
-          "skill_level": 1,
-          "file": "sugarcane-farm.schem"
-        },
-        {
-          "id": "tree-sapling-farm",
-          "name": "Tree Sapling Farm",
-          "description": "redstone, working mechanism, machine, tree sapling farm, working mechanism, tree sapling farm",
-          "dimensions": {
-            "w": 19,
-            "h": 13,
-            "d": 12
-          },
-          "block_count": 1215,
-          "tags": [
-            "redstone",
-            "working mechanism",
-            "machine",
-            "tree sapling farm",
-            "working mechanism",
-            "tree sapling farm"
-          ],
-          "author": "CrazyMonkeyPlaysMC",
-          "skill_level": 1,
-          "file": "tree-sapling-farm.schem"
-        },
-        {
-          "id": "vending-machine",
-          "name": "Vending Machine",
-          "description": "vending machine, mechanism, working mechanism, vending machine, working mechanism",
-          "dimensions": {
-            "w": 5,
-            "h": 5,
-            "d": 5
-          },
-          "block_count": 62,
-          "tags": [
-            "vending machine",
-            "mechanism",
-            "working mechanism",
-            "vending machine",
-            "working mechanism"
-          ],
-          "author": "MagmaMusen",
-          "skill_level": 1,
-          "file": "vending-machine.schem"
-        },
-        {
-          "id": "vending-machine-1",
-          "name": "Vending Machine 1",
-          "description": "vending machine, working mechanism, machine, vending machine, working mechanism",
-          "dimensions": {
-            "w": 7,
-            "h": 8,
-            "d": 13
-          },
-          "block_count": 452,
-          "tags": [
-            "vending machine",
-            "working mechanism",
-            "machine",
-            "vending machine",
-            "working mechanism"
-          ],
-          "author": "MrCrayfish",
-          "skill_level": 1,
-          "file": "vending-machine-1.schem"
-        }
-      ],
-      "count": 48
-    },
     "wooden-houses": {
       "blueprints": [
         {
@@ -56818,6 +55760,97 @@
       ],
       "count": 30
     },
+    "machines": {
+      "blueprints": [
+        {
+          "id": "cool-item-storage-w-hoppers",
+          "name": "Item Storage with Hoppers",
+          "description": "redstone, working mechanism, machine, mechanisms, item storage, working mechanism, mechanisms, item storage",
+          "dimensions": {
+            "w": 15,
+            "h": 5,
+            "d": 6
+          },
+          "block_count": 292,
+          "tags": [
+            "redstone",
+            "working mechanism",
+            "machine",
+            "mechanisms",
+            "item storage",
+            "working mechanism",
+            "mechanisms",
+            "item storage"
+          ],
+          "author": "MrCrayfish",
+          "skill_level": 1,
+          "file": "cool-item-storage-w-hoppers.schem"
+        },
+        {
+          "id": "modern-wind-turbine",
+          "name": "Modern Wind Turbine",
+          "description": "wind turbine, future, machine, wind, turbine, modern",
+          "dimensions": {
+            "w": 15,
+            "h": 82,
+            "d": 15
+          },
+          "block_count": 825,
+          "tags": [
+            "wind turbine",
+            "future",
+            "machine",
+            "wind",
+            "turbine",
+            "modern"
+          ],
+          "author": "MCFRArchitect",
+          "skill_level": 1,
+          "file": "modern-wind-turbine.schem"
+        },
+        {
+          "id": "roman-wooden-crane",
+          "name": "Roman Wooden Crane",
+          "description": "roman, crane, wooden crane, machine",
+          "dimensions": {
+            "w": 9,
+            "h": 6,
+            "d": 19
+          },
+          "block_count": 96,
+          "tags": [
+            "roman",
+            "crane",
+            "wooden crane",
+            "machine"
+          ],
+          "author": "dionp3838",
+          "skill_level": 1,
+          "file": "roman-wooden-crane.schem"
+        },
+        {
+          "id": "small-harbour-crane",
+          "name": "Small Harbour Crane",
+          "description": "crane, wooden crane, harbour, machine",
+          "dimensions": {
+            "w": 5,
+            "h": 10,
+            "d": 11
+          },
+          "block_count": 84,
+          "tags": [
+            "crane",
+            "wooden crane",
+            "harbour",
+            "machine"
+          ],
+          "author": "AngryBuild",
+          "skill_level": 1,
+          "file": "small-harbour-crane.schem"
+        }
+      ],
+      "count": 4
+    },
     "starter-houses": {
       "blueprints": [
         {
@@ -59827,6 +58860,883 @@
         }
       ],
       "count": 17
+    },
+    "villager-systems": {
+      "blueprints": [
+        {
+          "id": "mv-villager-breeder-511e693a",
+          "name": "Villager Breeder",
+          "description": "villager-breeder",
+          "dimensions": {
+            "w": 11,
+            "h": 32,
+            "d": 16
+          },
+          "block_count": 0,
+          "tags": [
+            "villager-breeder"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-villager-breeder-511e693a.schem",
+          "source": "minemev",
+          "downloads": 2537
+        },
+        {
+          "id": "mv-villager-breeder-b0df7275",
+          "name": "Villager Breeder",
+          "description": "Villager Breeder",
+          "dimensions": {
+            "w": 14,
+            "h": 7,
+            "d": 15
+          },
+          "block_count": 0,
+          "tags": [],
+          "author": "minemev/choculaterie",
+          "skill_level": 0,
+          "file": "mv-villager-breeder-b0df7275.schem",
+          "source": "minemev",
+          "downloads": 1727
+        },
+        {
+          "id": "mv-villagerfarm-efe46b98",
+          "name": "VillagerFarm",
+          "description": "villager-breeder",
+          "dimensions": {
+            "w": 17,
+            "h": 11,
+            "d": 17
+          },
+          "block_count": 0,
+          "tags": [
+            "villager-breeder"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-villagerfarm-efe46b98.schem",
+          "source": "minemev",
+          "downloads": 3208
+        },
+        {
+          "id": "mv-void-trading-peak-67044032",
+          "name": "Void Trading Peak",
+          "description": "late-game, trading-hall",
+          "dimensions": {
+            "w": 73,
+            "h": 30,
+            "d": 57
+          },
+          "block_count": 0,
+          "tags": [
+            "late-game",
+            "trading-hall"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-void-trading-peak-67044032.schem",
+          "source": "minemev",
+          "downloads": 197
+        },
+        {
+          "id": "mv-arquitech-lightspeed-calleable-villager-trading-hall-136cf1a6",
+          "name": "[Arquitech]Lightspeed Calleable Villager Trading Hall",
+          "description": "trading-hall, villager-breeder",
+          "dimensions": {
+            "w": 49,
+            "h": 18,
+            "d": 40
+          },
+          "block_count": 0,
+          "tags": [
+            "trading-hall",
+            "villager-breeder"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-arquitech-lightspeed-calleable-villager-trading-hall-136cf1a6.schem",
+          "source": "minemev",
+          "downloads": 641
+        },
+        {
+          "id": "mv-ming-yuan-encoded-villager-trading-v2-6a3e2848",
+          "name": "[ming_yuan] Encoded Villager Trading v2",
+          "description": "trading-hall",
+          "dimensions": {
+            "w": 49,
+            "h": 16,
+            "d": 49
+          },
+          "block_count": 0,
+          "tags": [
+            "trading-hall"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-ming-yuan-encoded-villager-trading-v2-6a3e2848.schem",
+          "source": "minemev",
+          "downloads": 970
+        },
+        {
+          "id": "mv-ming-yuan-compact-encoded-void-trading-4ca0d9bb",
+          "name": "[ming_yuan]Compact Encoded Void Trading",
+          "description": "end, late-game, trading-hall",
+          "dimensions": {
+            "w": 41,
+            "h": 13,
+            "d": 61
+          },
+          "block_count": 0,
+          "tags": [
+            "end",
+            "late-game",
+            "trading-hall"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-ming-yuan-compact-encoded-void-trading-4ca0d9bb.schem",
+          "source": "minemev",
+          "downloads": 1021
+        },
+        {
+          "id": "mv-rozsys-automatic-villager-breeder-64083859",
+          "name": "[rozsys]Automatic Villager Breeder",
+          "description": "early-game, villager-breeder",
+          "dimensions": {
+            "w": 11,
+            "h": 11,
+            "d": 25
+          },
+          "block_count": 0,
+          "tags": [
+            "early-game",
+            "villager-breeder"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-rozsys-automatic-villager-breeder-64083859.schem",
+          "source": "minemev",
+          "downloads": 1402
+        },
+        {
+          "id": "mv-simple-villager-breeder-cc9b9930",
+          "name": "simple villager breeder",
+          "description": "early-game, mid-game, villager-breeder",
+          "dimensions": {
+            "w": 14,
+            "h": 12,
+            "d": 13
+          },
+          "block_count": 0,
+          "tags": [
+            "early-game",
+            "mid-game",
+            "villager-breeder"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-simple-villager-breeder-cc9b9930.schem",
+          "source": "minemev",
+          "downloads": 579
+        }
+      ],
+      "count": 9
+    },
+    "resource-farms": {
+      "blueprints": [
+        {
+          "id": "mv-1049k-cobblestone-farm-7d3af3a8",
+          "name": "1049k cobblestone  Farm",
+          "description": "cobblestone",
+          "dimensions": {
+            "w": 29,
+            "h": 28,
+            "d": 29
+          },
+          "block_count": 0,
+          "tags": [
+            "cobblestone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1049k-cobblestone-farm-7d3af3a8.schem",
+          "source": "minemev",
+          "downloads": 259
+        },
+        {
+          "id": "mv-108k-h-concrete-factory-0f583b0f",
+          "name": "108k/h Concrete factory",
+          "description": "concrete",
+          "dimensions": {
+            "w": 13,
+            "h": 16,
+            "d": 13
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-108k-h-concrete-factory-0f583b0f.schem",
+          "source": "minemev",
+          "downloads": 170
+        },
+        {
+          "id": "mv-192k-endstone-farm-6gt-1-13-b4c9a86d",
+          "name": "192k EndStone farm 6gt 1.13+",
+          "description": "end-stone, resource-farming",
+          "dimensions": {
+            "w": 29,
+            "h": 29,
+            "d": 27
+          },
+          "block_count": 0,
+          "tags": [
+            "end-stone",
+            "resource-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-192k-endstone-farm-6gt-1-13-b4c9a86d.schem",
+          "source": "minemev",
+          "downloads": 139
+        },
+        {
+          "id": "mv-30k-h-cheap-cobblestone-farm-99d9eb2e",
+          "name": "30K/h cheap cobblestone farm ",
+          "description": "cobblestone",
+          "dimensions": {
+            "w": 11,
+            "h": 13,
+            "d": 11
+          },
+          "block_count": 0,
+          "tags": [
+            "cobblestone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-30k-h-cheap-cobblestone-farm-99d9eb2e.schem",
+          "source": "minemev",
+          "downloads": 965
+        },
+        {
+          "id": "mv-36k-no-prefill-mud-converter-6c75c59e",
+          "name": "36k No Prefill Mud Converter",
+          "description": "block-farming, early-game",
+          "dimensions": {
+            "w": 8,
+            "h": 8,
+            "d": 21
+          },
+          "block_count": 0,
+          "tags": [
+            "block-farming",
+            "early-game"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-36k-no-prefill-mud-converter-6c75c59e.schem",
+          "source": "minemev",
+          "downloads": 78
+        },
+        {
+          "id": "mv-52-6k-simple-dark-pale-oak-farm-af65d00a",
+          "name": "52.6k Simple Dark/Pale Oak Farm",
+          "description": "dark-oak-wood, early-game, wood, resource-farming, block-farming",
+          "dimensions": {
+            "w": 19,
+            "h": 25,
+            "d": 21
+          },
+          "block_count": 0,
+          "tags": [
+            "dark-oak-wood",
+            "early-game",
+            "wood",
+            "resource-farming",
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-52-6k-simple-dark-pale-oak-farm-af65d00a.schem",
+          "source": "minemev",
+          "downloads": 1237
+        },
+        {
+          "id": "mv-62k-h-concrete-duper-concrete-converter-b7d8fb40",
+          "name": "62k/h Concrete duper + Concrete converter",
+          "description": "concrete, mid-game",
+          "dimensions": {
+            "w": 13,
+            "h": 10,
+            "d": 13
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "mid-game"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-62k-h-concrete-duper-concrete-converter-b7d8fb40.schem",
+          "source": "minemev",
+          "downloads": 732
+        },
+        {
+          "id": "mv-72k-h-redstoneless-basalt-farm-50477bcc",
+          "name": "72k/h Redstoneless Basalt Farm",
+          "description": "basalt",
+          "dimensions": {
+            "w": 9,
+            "h": 7,
+            "d": 5
+          },
+          "block_count": 0,
+          "tags": [
+            "basalt"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-72k-h-redstoneless-basalt-farm-50477bcc.schem",
+          "source": "minemev",
+          "downloads": 291
+        },
+        {
+          "id": "mv-801k-basalt-farm-78448e16",
+          "name": "801k basalt farm",
+          "description": "basalt",
+          "dimensions": {
+            "w": 29,
+            "h": 32,
+            "d": 33
+          },
+          "block_count": 0,
+          "tags": [
+            "basalt"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-801k-basalt-farm-78448e16.schem",
+          "source": "minemev",
+          "downloads": 175
+        },
+        {
+          "id": "mv-block-converter-4aa27e52",
+          "name": "Block Converter",
+          "description": "late-game, mid-game, block-farming",
+          "dimensions": {
+            "w": 9,
+            "h": 13,
+            "d": 9
+          },
+          "block_count": 0,
+          "tags": [
+            "late-game",
+            "mid-game",
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-block-converter-4aa27e52.schem",
+          "source": "minemev",
+          "downloads": 61
+        },
+        {
+          "id": "mv-checkpoint-station-83d49c88",
+          "name": "Checkpoint Station",
+          "description": "snow",
+          "dimensions": {
+            "w": 22,
+            "h": 17,
+            "d": 18
+          },
+          "block_count": 0,
+          "tags": [
+            "snow"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-checkpoint-station-83d49c88.schem",
+          "source": "minemev",
+          "downloads": 887
+        },
+        {
+          "id": "mv-dupper-selector-concrete-ow-to-end-96k-h-2e27ab14",
+          "name": "Dupper&Selector concrete Ow to End 96k/h ",
+          "description": "concrete, gravity-block, end, item-duplication",
+          "dimensions": {
+            "w": 33,
+            "h": 52,
+            "d": 27
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "gravity-block",
+            "end",
+            "item-duplication"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-dupper-selector-concrete-ow-to-end-96k-h-2e27ab14.schem",
+          "source": "minemev",
+          "downloads": 655
+        },
+        {
+          "id": "mv-easy-early-cobblestone-farm-1-21-4-35k-h-0c711bc6",
+          "name": "Easy/Early Cobblestone Farm 1.21.4 35k/h",
+          "description": "cobblestone, early-game",
+          "dimensions": {
+            "w": 11,
+            "h": 19,
+            "d": 11
+          },
+          "block_count": 0,
+          "tags": [
+            "cobblestone",
+            "early-game"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-easy-early-cobblestone-farm-1-21-4-35k-h-0c711bc6.schem",
+          "source": "minemev",
+          "downloads": 3144
+        },
+        {
+          "id": "mv-fast-snow-farm-302k-h-a7e79e8b",
+          "name": "Fast Snow farm | 302k/h",
+          "description": "snow",
+          "dimensions": {
+            "w": 23,
+            "h": 32,
+            "d": 23
+          },
+          "block_count": 0,
+          "tags": [
+            "snow"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-fast-snow-farm-302k-h-a7e79e8b.schem",
+          "source": "minemev",
+          "downloads": 145
+        },
+        {
+          "id": "mv-global-reset-variable-loader-86261ff8",
+          "name": "Global Reset Variable Loader",
+          "description": "block-farming, box-loader, redstone-contraption, storage-tech",
+          "dimensions": {
+            "w": 27,
+            "h": 9,
+            "d": 12
+          },
+          "block_count": 0,
+          "tags": [
+            "block-farming",
+            "box-loader",
+            "redstone-contraption",
+            "storage-tech"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-global-reset-variable-loader-86261ff8.schem",
+          "source": "minemev",
+          "downloads": 116
+        },
+        {
+          "id": "mv-granja-de-slime-27d174c1",
+          "name": "Granja de Slime ",
+          "description": "carpet, redstone, slime, slimestone, snow",
+          "dimensions": {
+            "w": 14,
+            "h": 14,
+            "d": 14
+          },
+          "block_count": 0,
+          "tags": [
+            "carpet",
+            "redstone",
+            "slime",
+            "slimestone",
+            "snow"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-granja-de-slime-27d174c1.schem",
+          "source": "minemev",
+          "downloads": 405
+        },
+        {
+          "id": "mv-log-converter-41ed507f",
+          "name": "Log Converter",
+          "description": "late-game, mid-game, block-farming",
+          "dimensions": {
+            "w": 7,
+            "h": 13,
+            "d": 9
+          },
+          "block_count": 0,
+          "tags": [
+            "late-game",
+            "mid-game",
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-log-converter-41ed507f.schem",
+          "source": "minemev",
+          "downloads": 46
+        },
+        {
+          "id": "mv-mega-dupper-de-falling-blocks-8-800-000-de-tems-por-hora-eabda17c",
+          "name": "Mega Dupper de Falling Blocks 8.800.000 de \u00edtems por hora",
+          "description": "bulk-storage, concrete, end, falling-blocks, sand",
+          "dimensions": {
+            "w": 116,
+            "h": 85,
+            "d": 42
+          },
+          "block_count": 0,
+          "tags": [
+            "bulk-storage",
+            "concrete",
+            "end",
+            "falling-blocks",
+            "sand"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-mega-dupper-de-falling-blocks-8-800-000-de-tems-por-hora-eabda17c.schem",
+          "source": "minemev",
+          "downloads": 108
+        },
+        {
+          "id": "mv-push-only-72k-stone-farm-dbc7eb92",
+          "name": "Push-only 72k Stone Farm",
+          "description": "stone",
+          "dimensions": {
+            "w": 7,
+            "h": 12,
+            "d": 15
+          },
+          "block_count": 0,
+          "tags": [
+            "stone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-push-only-72k-stone-farm-dbc7eb92.schem",
+          "source": "minemev",
+          "downloads": 224
+        },
+        {
+          "id": "mv-resin-farm-5e756d99",
+          "name": "Resin Farm",
+          "description": "block-farming",
+          "dimensions": {
+            "w": 31,
+            "h": 29,
+            "d": 30
+          },
+          "block_count": 0,
+          "tags": [
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-resin-farm-5e756d99.schem",
+          "source": "minemev",
+          "downloads": 304
+        },
+        {
+          "id": "mv-scorpio-463-6k-12gt-big-spruce-47166b2c",
+          "name": "Scorpio 463.6k 12gt Big Spruce",
+          "description": "spruce-wood, block-farming",
+          "dimensions": {
+            "w": 14,
+            "h": 35,
+            "d": 14
+          },
+          "block_count": 0,
+          "tags": [
+            "spruce-wood",
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-scorpio-463-6k-12gt-big-spruce-47166b2c.schem",
+          "source": "minemev",
+          "downloads": 2242
+        },
+        {
+          "id": "mv-smallest-sand-duper-108k-h-4ce58c7f",
+          "name": "Smallest Sand Duper | 108k/h",
+          "description": "concrete, gravel, gravity-block, sand",
+          "dimensions": {
+            "w": 7,
+            "h": 4,
+            "d": 7
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "gravel",
+            "gravity-block",
+            "sand"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-smallest-sand-duper-108k-h-4ce58c7f.schem",
+          "source": "minemev",
+          "downloads": 373
+        },
+        {
+          "id": "mv-smallest-sand-duper-123k-h-a63d2e77",
+          "name": "Smallest Sand Duper | 123k/h",
+          "description": "concrete, gravel, gravity-block, sand",
+          "dimensions": {
+            "w": 7,
+            "h": 4,
+            "d": 7
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "gravel",
+            "gravity-block",
+            "sand"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-smallest-sand-duper-123k-h-a63d2e77.schem",
+          "source": "minemev",
+          "downloads": 1320
+        },
+        {
+          "id": "mv-starwire-end-hub-46a2d7a4",
+          "name": "Starwire End hub",
+          "description": "concrete, encoded-tech",
+          "dimensions": {
+            "w": 367,
+            "h": 150,
+            "d": 238
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "encoded-tech"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-starwire-end-hub-46a2d7a4.schem",
+          "source": "minemev",
+          "downloads": 643
+        },
+        {
+          "id": "mv-1-14-120k-async-obsidian-farm-41a43a53",
+          "name": "[1.14+] 120k async obsidian farm",
+          "description": "obsidian",
+          "dimensions": {
+            "w": 21,
+            "h": 19,
+            "d": 42
+          },
+          "block_count": 0,
+          "tags": [
+            "obsidian"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1-14-120k-async-obsidian-farm-41a43a53.schem",
+          "source": "minemev",
+          "downloads": 356
+        },
+        {
+          "id": "mv-1-16-1-18-1-end-to-over-180k-h-v3-6gt-concrete-duper-selecto-3ee5ec18",
+          "name": "[1.16 - 1.18.1] End To Over - 180k/h v3 6GT Concrete Duper Selector",
+          "description": "concrete, end, gravity-block, item-duplication",
+          "dimensions": {
+            "w": 25,
+            "h": 28,
+            "d": 21
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "end",
+            "gravity-block",
+            "item-duplication"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1-16-1-18-1-end-to-over-180k-h-v3-6gt-concrete-duper-selecto-3ee5ec18.schem",
+          "source": "minemev",
+          "downloads": 568
+        },
+        {
+          "id": "mv-1-17-ctec-copper-oxidizer-781a3445",
+          "name": "[1.17+]CTEC_Copper_Oxidizer",
+          "description": "cobblestone, resource-farming",
+          "dimensions": {
+            "w": 305,
+            "h": 178,
+            "d": 305
+          },
+          "block_count": 0,
+          "tags": [
+            "cobblestone",
+            "resource-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1-17-ctec-copper-oxidizer-781a3445.schem",
+          "source": "minemev",
+          "downloads": 83
+        },
+        {
+          "id": "mv-1-20-concrete-factory-by-kassius-and-lainux-269ca7c2",
+          "name": "[1.20] Concrete Factory By @Kassius and @Lainux ",
+          "description": "concrete, mid-game",
+          "dimensions": {
+            "w": 13,
+            "h": 14,
+            "d": 17
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "mid-game"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1-20-concrete-factory-by-kassius-and-lainux-269ca7c2.schem",
+          "source": "minemev",
+          "downloads": 626
+        },
+        {
+          "id": "mv-1-21-cobblestone-farm-x24-da6e7c18",
+          "name": "[1.21]Cobblestone Farm x24",
+          "description": "block-farming, cobblestone",
+          "dimensions": {
+            "w": 70,
+            "h": 24,
+            "d": 74
+          },
+          "block_count": 0,
+          "tags": [
+            "block-farming",
+            "cobblestone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-1-21-cobblestone-farm-x24-da6e7c18.schem",
+          "source": "minemev",
+          "downloads": 463
+        },
+        {
+          "id": "mv-adrisaga-1-19-cobblefarm-480k-d11aae8d",
+          "name": "[Adrisaga] (1.19+) CobbleFarm 480k ",
+          "description": "block-farming, cobblestone",
+          "dimensions": {
+            "w": 21,
+            "h": 37,
+            "d": 21
+          },
+          "block_count": 0,
+          "tags": [
+            "block-farming",
+            "cobblestone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-adrisaga-1-19-cobblefarm-480k-d11aae8d.schem",
+          "source": "minemev",
+          "downloads": 1360
+        },
+        {
+          "id": "mv-floppy-melon-pumpkin-farm-a4a10bc7",
+          "name": "[Floppy] Melon/Pumpkin Farm",
+          "description": "pumpkin, resource-farming",
+          "dimensions": {
+            "w": 248,
+            "h": 16,
+            "d": 79
+          },
+          "block_count": 0,
+          "tags": [
+            "pumpkin",
+            "resource-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-floppy-melon-pumpkin-farm-a4a10bc7.schem",
+          "source": "minemev",
+          "downloads": 317
+        },
+        {
+          "id": "mv-mechanist-basalt-generator-465k-h-ba733638",
+          "name": "[Mechanist] Basalt Generator 465k/h ",
+          "description": "basalt, block-farming",
+          "dimensions": {
+            "w": 16,
+            "h": 26,
+            "d": 25
+          },
+          "block_count": 0,
+          "tags": [
+            "basalt",
+            "block-farming"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-mechanist-basalt-generator-465k-h-ba733638.schem",
+          "source": "minemev",
+          "downloads": 266
+        },
+        {
+          "id": "mv-roziry-432k-concrete-factory-for-bread-duper-13be6b0f",
+          "name": "[Roziry]432k Concrete Factory for bread duper",
+          "description": "concrete, late-game",
+          "dimensions": {
+            "w": 17,
+            "h": 28,
+            "d": 43
+          },
+          "block_count": 0,
+          "tags": [
+            "concrete",
+            "late-game"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-roziry-432k-concrete-factory-for-bread-duper-13be6b0f.schem",
+          "source": "minemev",
+          "downloads": 302
+        },
+        {
+          "id": "mv-haohandh-woshixingreng-1m-compact-cobblestone-farm-v3-3946c1d9",
+          "name": "[haohandh & woshixingreng]1M Compact Cobblestone Farm V3",
+          "description": "mid-game, stone",
+          "dimensions": {
+            "w": 19,
+            "h": 17,
+            "d": 19
+          },
+          "block_count": 0,
+          "tags": [
+            "mid-game",
+            "stone"
+          ],
+          "author": "minemev/minemev",
+          "skill_level": 0,
+          "file": "mv-haohandh-woshixingreng-1m-compact-cobblestone-farm-v3-3946c1d9.schem",
+          "source": "minemev",
+          "downloads": 165
+        }
+      ],
+      "count": 34
     },
     "technical-other": {
       "blueprints": [
@@ -66027,883 +65937,6 @@
         }
       ],
       "count": 345
-    },
-    "villager-systems": {
-      "blueprints": [
-        {
-          "id": "mv-villager-breeder-511e693a",
-          "name": "Villager Breeder",
-          "description": "villager-breeder",
-          "dimensions": {
-            "w": 11,
-            "h": 32,
-            "d": 16
-          },
-          "block_count": 0,
-          "tags": [
-            "villager-breeder"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-villager-breeder-511e693a.schem",
-          "source": "minemev",
-          "downloads": 2537
-        },
-        {
-          "id": "mv-villager-breeder-b0df7275",
-          "name": "Villager Breeder",
-          "description": "Villager Breeder",
-          "dimensions": {
-            "w": 14,
-            "h": 7,
-            "d": 15
-          },
-          "block_count": 0,
-          "tags": [],
-          "author": "minemev/choculaterie",
-          "skill_level": 0,
-          "file": "mv-villager-breeder-b0df7275.schem",
-          "source": "minemev",
-          "downloads": 1727
-        },
-        {
-          "id": "mv-villagerfarm-efe46b98",
-          "name": "VillagerFarm",
-          "description": "villager-breeder",
-          "dimensions": {
-            "w": 17,
-            "h": 11,
-            "d": 17
-          },
-          "block_count": 0,
-          "tags": [
-            "villager-breeder"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-villagerfarm-efe46b98.schem",
-          "source": "minemev",
-          "downloads": 3208
-        },
-        {
-          "id": "mv-void-trading-peak-67044032",
-          "name": "Void Trading Peak",
-          "description": "late-game, trading-hall",
-          "dimensions": {
-            "w": 73,
-            "h": 30,
-            "d": 57
-          },
-          "block_count": 0,
-          "tags": [
-            "late-game",
-            "trading-hall"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-void-trading-peak-67044032.schem",
-          "source": "minemev",
-          "downloads": 197
-        },
-        {
-          "id": "mv-arquitech-lightspeed-calleable-villager-trading-hall-136cf1a6",
-          "name": "[Arquitech]Lightspeed Calleable Villager Trading Hall",
-          "description": "trading-hall, villager-breeder",
-          "dimensions": {
-            "w": 49,
-            "h": 18,
-            "d": 40
-          },
-          "block_count": 0,
-          "tags": [
-            "trading-hall",
-            "villager-breeder"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-arquitech-lightspeed-calleable-villager-trading-hall-136cf1a6.schem",
-          "source": "minemev",
-          "downloads": 641
-        },
-        {
-          "id": "mv-ming-yuan-encoded-villager-trading-v2-6a3e2848",
-          "name": "[ming_yuan] Encoded Villager Trading v2",
-          "description": "trading-hall",
-          "dimensions": {
-            "w": 49,
-            "h": 16,
-            "d": 49
-          },
-          "block_count": 0,
-          "tags": [
-            "trading-hall"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-ming-yuan-encoded-villager-trading-v2-6a3e2848.schem",
-          "source": "minemev",
-          "downloads": 970
-        },
-        {
-          "id": "mv-ming-yuan-compact-encoded-void-trading-4ca0d9bb",
-          "name": "[ming_yuan]Compact Encoded Void Trading",
-          "description": "end, late-game, trading-hall",
-          "dimensions": {
-            "w": 41,
-            "h": 13,
-            "d": 61
-          },
-          "block_count": 0,
-          "tags": [
-            "end",
-            "late-game",
-            "trading-hall"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-ming-yuan-compact-encoded-void-trading-4ca0d9bb.schem",
-          "source": "minemev",
-          "downloads": 1021
-        },
-        {
-          "id": "mv-rozsys-automatic-villager-breeder-64083859",
-          "name": "[rozsys]Automatic Villager Breeder",
-          "description": "early-game, villager-breeder",
-          "dimensions": {
-            "w": 11,
-            "h": 11,
-            "d": 25
-          },
-          "block_count": 0,
-          "tags": [
-            "early-game",
-            "villager-breeder"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-rozsys-automatic-villager-breeder-64083859.schem",
-          "source": "minemev",
-          "downloads": 1402
-        },
-        {
-          "id": "mv-simple-villager-breeder-cc9b9930",
-          "name": "simple villager breeder",
-          "description": "early-game, mid-game, villager-breeder",
-          "dimensions": {
-            "w": 14,
-            "h": 12,
-            "d": 13
-          },
-          "block_count": 0,
-          "tags": [
-            "early-game",
-            "mid-game",
-            "villager-breeder"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-simple-villager-breeder-cc9b9930.schem",
-          "source": "minemev",
-          "downloads": 579
-        }
-      ],
-      "count": 9
-    },
-    "resource-farms": {
-      "blueprints": [
-        {
-          "id": "mv-1049k-cobblestone-farm-7d3af3a8",
-          "name": "1049k cobblestone  Farm",
-          "description": "cobblestone",
-          "dimensions": {
-            "w": 29,
-            "h": 28,
-            "d": 29
-          },
-          "block_count": 0,
-          "tags": [
-            "cobblestone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1049k-cobblestone-farm-7d3af3a8.schem",
-          "source": "minemev",
-          "downloads": 259
-        },
-        {
-          "id": "mv-108k-h-concrete-factory-0f583b0f",
-          "name": "108k/h Concrete factory",
-          "description": "concrete",
-          "dimensions": {
-            "w": 13,
-            "h": 16,
-            "d": 13
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-108k-h-concrete-factory-0f583b0f.schem",
-          "source": "minemev",
-          "downloads": 170
-        },
-        {
-          "id": "mv-192k-endstone-farm-6gt-1-13-b4c9a86d",
-          "name": "192k EndStone farm 6gt 1.13+",
-          "description": "end-stone, resource-farming",
-          "dimensions": {
-            "w": 29,
-            "h": 29,
-            "d": 27
-          },
-          "block_count": 0,
-          "tags": [
-            "end-stone",
-            "resource-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-192k-endstone-farm-6gt-1-13-b4c9a86d.schem",
-          "source": "minemev",
-          "downloads": 139
-        },
-        {
-          "id": "mv-30k-h-cheap-cobblestone-farm-99d9eb2e",
-          "name": "30K/h cheap cobblestone farm ",
-          "description": "cobblestone",
-          "dimensions": {
-            "w": 11,
-            "h": 13,
-            "d": 11
-          },
-          "block_count": 0,
-          "tags": [
-            "cobblestone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-30k-h-cheap-cobblestone-farm-99d9eb2e.schem",
-          "source": "minemev",
-          "downloads": 965
-        },
-        {
-          "id": "mv-36k-no-prefill-mud-converter-6c75c59e",
-          "name": "36k No Prefill Mud Converter",
-          "description": "block-farming, early-game",
-          "dimensions": {
-            "w": 8,
-            "h": 8,
-            "d": 21
-          },
-          "block_count": 0,
-          "tags": [
-            "block-farming",
-            "early-game"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-36k-no-prefill-mud-converter-6c75c59e.schem",
-          "source": "minemev",
-          "downloads": 78
-        },
-        {
-          "id": "mv-52-6k-simple-dark-pale-oak-farm-af65d00a",
-          "name": "52.6k Simple Dark/Pale Oak Farm",
-          "description": "dark-oak-wood, early-game, wood, resource-farming, block-farming",
-          "dimensions": {
-            "w": 19,
-            "h": 25,
-            "d": 21
-          },
-          "block_count": 0,
-          "tags": [
-            "dark-oak-wood",
-            "early-game",
-            "wood",
-            "resource-farming",
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-52-6k-simple-dark-pale-oak-farm-af65d00a.schem",
-          "source": "minemev",
-          "downloads": 1237
-        },
-        {
-          "id": "mv-62k-h-concrete-duper-concrete-converter-b7d8fb40",
-          "name": "62k/h Concrete duper + Concrete converter",
-          "description": "concrete, mid-game",
-          "dimensions": {
-            "w": 13,
-            "h": 10,
-            "d": 13
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "mid-game"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-62k-h-concrete-duper-concrete-converter-b7d8fb40.schem",
-          "source": "minemev",
-          "downloads": 732
-        },
-        {
-          "id": "mv-72k-h-redstoneless-basalt-farm-50477bcc",
-          "name": "72k/h Redstoneless Basalt Farm",
-          "description": "basalt",
-          "dimensions": {
-            "w": 9,
-            "h": 7,
-            "d": 5
-          },
-          "block_count": 0,
-          "tags": [
-            "basalt"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-72k-h-redstoneless-basalt-farm-50477bcc.schem",
-          "source": "minemev",
-          "downloads": 291
-        },
-        {
-          "id": "mv-801k-basalt-farm-78448e16",
-          "name": "801k basalt farm",
-          "description": "basalt",
-          "dimensions": {
-            "w": 29,
-            "h": 32,
-            "d": 33
-          },
-          "block_count": 0,
-          "tags": [
-            "basalt"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-801k-basalt-farm-78448e16.schem",
-          "source": "minemev",
-          "downloads": 175
-        },
-        {
-          "id": "mv-block-converter-4aa27e52",
-          "name": "Block Converter",
-          "description": "late-game, mid-game, block-farming",
-          "dimensions": {
-            "w": 9,
-            "h": 13,
-            "d": 9
-          },
-          "block_count": 0,
-          "tags": [
-            "late-game",
-            "mid-game",
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-block-converter-4aa27e52.schem",
-          "source": "minemev",
-          "downloads": 61
-        },
-        {
-          "id": "mv-checkpoint-station-83d49c88",
-          "name": "Checkpoint Station",
-          "description": "snow",
-          "dimensions": {
-            "w": 22,
-            "h": 17,
-            "d": 18
-          },
-          "block_count": 0,
-          "tags": [
-            "snow"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-checkpoint-station-83d49c88.schem",
-          "source": "minemev",
-          "downloads": 887
-        },
-        {
-          "id": "mv-dupper-selector-concrete-ow-to-end-96k-h-2e27ab14",
-          "name": "Dupper&Selector concrete Ow to End 96k/h ",
-          "description": "concrete, gravity-block, end, item-duplication",
-          "dimensions": {
-            "w": 33,
-            "h": 52,
-            "d": 27
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "gravity-block",
-            "end",
-            "item-duplication"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-dupper-selector-concrete-ow-to-end-96k-h-2e27ab14.schem",
-          "source": "minemev",
-          "downloads": 655
-        },
-        {
-          "id": "mv-easy-early-cobblestone-farm-1-21-4-35k-h-0c711bc6",
-          "name": "Easy/Early Cobblestone Farm 1.21.4 35k/h",
-          "description": "cobblestone, early-game",
-          "dimensions": {
-            "w": 11,
-            "h": 19,
-            "d": 11
-          },
-          "block_count": 0,
-          "tags": [
-            "cobblestone",
-            "early-game"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-easy-early-cobblestone-farm-1-21-4-35k-h-0c711bc6.schem",
-          "source": "minemev",
-          "downloads": 3144
-        },
-        {
-          "id": "mv-fast-snow-farm-302k-h-a7e79e8b",
-          "name": "Fast Snow farm | 302k/h",
-          "description": "snow",
-          "dimensions": {
-            "w": 23,
-            "h": 32,
-            "d": 23
-          },
-          "block_count": 0,
-          "tags": [
-            "snow"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-fast-snow-farm-302k-h-a7e79e8b.schem",
-          "source": "minemev",
-          "downloads": 145
-        },
-        {
-          "id": "mv-global-reset-variable-loader-86261ff8",
-          "name": "Global Reset Variable Loader",
-          "description": "block-farming, box-loader, redstone-contraption, storage-tech",
-          "dimensions": {
-            "w": 27,
-            "h": 9,
-            "d": 12
-          },
-          "block_count": 0,
-          "tags": [
-            "block-farming",
-            "box-loader",
-            "redstone-contraption",
-            "storage-tech"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-global-reset-variable-loader-86261ff8.schem",
-          "source": "minemev",
-          "downloads": 116
-        },
-        {
-          "id": "mv-granja-de-slime-27d174c1",
-          "name": "Granja de Slime ",
-          "description": "carpet, redstone, slime, slimestone, snow",
-          "dimensions": {
-            "w": 14,
-            "h": 14,
-            "d": 14
-          },
-          "block_count": 0,
-          "tags": [
-            "carpet",
-            "redstone",
-            "slime",
-            "slimestone",
-            "snow"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-granja-de-slime-27d174c1.schem",
-          "source": "minemev",
-          "downloads": 405
-        },
-        {
-          "id": "mv-log-converter-41ed507f",
-          "name": "Log Converter",
-          "description": "late-game, mid-game, block-farming",
-          "dimensions": {
-            "w": 7,
-            "h": 13,
-            "d": 9
-          },
-          "block_count": 0,
-          "tags": [
-            "late-game",
-            "mid-game",
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-log-converter-41ed507f.schem",
-          "source": "minemev",
-          "downloads": 46
-        },
-        {
-          "id": "mv-mega-dupper-de-falling-blocks-8-800-000-de-tems-por-hora-eabda17c",
-          "name": "Mega Dupper de Falling Blocks 8.800.000 de \u00edtems por hora",
-          "description": "bulk-storage, concrete, end, falling-blocks, sand",
-          "dimensions": {
-            "w": 116,
-            "h": 85,
-            "d": 42
-          },
-          "block_count": 0,
-          "tags": [
-            "bulk-storage",
-            "concrete",
-            "end",
-            "falling-blocks",
-            "sand"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-mega-dupper-de-falling-blocks-8-800-000-de-tems-por-hora-eabda17c.schem",
-          "source": "minemev",
-          "downloads": 108
-        },
-        {
-          "id": "mv-push-only-72k-stone-farm-dbc7eb92",
-          "name": "Push-only 72k Stone Farm",
-          "description": "stone",
-          "dimensions": {
-            "w": 7,
-            "h": 12,
-            "d": 15
-          },
-          "block_count": 0,
-          "tags": [
-            "stone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-push-only-72k-stone-farm-dbc7eb92.schem",
-          "source": "minemev",
-          "downloads": 224
-        },
-        {
-          "id": "mv-resin-farm-5e756d99",
-          "name": "Resin Farm",
-          "description": "block-farming",
-          "dimensions": {
-            "w": 31,
-            "h": 29,
-            "d": 30
-          },
-          "block_count": 0,
-          "tags": [
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-resin-farm-5e756d99.schem",
-          "source": "minemev",
-          "downloads": 304
-        },
-        {
-          "id": "mv-scorpio-463-6k-12gt-big-spruce-47166b2c",
-          "name": "Scorpio 463.6k 12gt Big Spruce",
-          "description": "spruce-wood, block-farming",
-          "dimensions": {
-            "w": 14,
-            "h": 35,
-            "d": 14
-          },
-          "block_count": 0,
-          "tags": [
-            "spruce-wood",
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-scorpio-463-6k-12gt-big-spruce-47166b2c.schem",
-          "source": "minemev",
-          "downloads": 2242
-        },
-        {
-          "id": "mv-smallest-sand-duper-108k-h-4ce58c7f",
-          "name": "Smallest Sand Duper | 108k/h",
-          "description": "concrete, gravel, gravity-block, sand",
-          "dimensions": {
-            "w": 7,
-            "h": 4,
-            "d": 7
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "gravel",
-            "gravity-block",
-            "sand"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-smallest-sand-duper-108k-h-4ce58c7f.schem",
-          "source": "minemev",
-          "downloads": 373
-        },
-        {
-          "id": "mv-smallest-sand-duper-123k-h-a63d2e77",
-          "name": "Smallest Sand Duper | 123k/h",
-          "description": "concrete, gravel, gravity-block, sand",
-          "dimensions": {
-            "w": 7,
-            "h": 4,
-            "d": 7
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "gravel",
-            "gravity-block",
-            "sand"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-smallest-sand-duper-123k-h-a63d2e77.schem",
-          "source": "minemev",
-          "downloads": 1320
-        },
-        {
-          "id": "mv-starwire-end-hub-46a2d7a4",
-          "name": "Starwire End hub",
-          "description": "concrete, encoded-tech",
-          "dimensions": {
-            "w": 367,
-            "h": 150,
-            "d": 238
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "encoded-tech"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-starwire-end-hub-46a2d7a4.schem",
-          "source": "minemev",
-          "downloads": 643
-        },
-        {
-          "id": "mv-1-14-120k-async-obsidian-farm-41a43a53",
-          "name": "[1.14+] 120k async obsidian farm",
-          "description": "obsidian",
-          "dimensions": {
-            "w": 21,
-            "h": 19,
-            "d": 42
-          },
-          "block_count": 0,
-          "tags": [
-            "obsidian"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1-14-120k-async-obsidian-farm-41a43a53.schem",
-          "source": "minemev",
-          "downloads": 356
-        },
-        {
-          "id": "mv-1-16-1-18-1-end-to-over-180k-h-v3-6gt-concrete-duper-selecto-3ee5ec18",
-          "name": "[1.16 - 1.18.1] End To Over - 180k/h v3 6GT Concrete Duper Selector",
-          "description": "concrete, end, gravity-block, item-duplication",
-          "dimensions": {
-            "w": 25,
-            "h": 28,
-            "d": 21
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "end",
-            "gravity-block",
-            "item-duplication"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1-16-1-18-1-end-to-over-180k-h-v3-6gt-concrete-duper-selecto-3ee5ec18.schem",
-          "source": "minemev",
-          "downloads": 568
-        },
-        {
-          "id": "mv-1-17-ctec-copper-oxidizer-781a3445",
-          "name": "[1.17+]CTEC_Copper_Oxidizer",
-          "description": "cobblestone, resource-farming",
-          "dimensions": {
-            "w": 305,
-            "h": 178,
-            "d": 305
-          },
-          "block_count": 0,
-          "tags": [
-            "cobblestone",
-            "resource-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1-17-ctec-copper-oxidizer-781a3445.schem",
-          "source": "minemev",
-          "downloads": 83
-        },
-        {
-          "id": "mv-1-20-concrete-factory-by-kassius-and-lainux-269ca7c2",
-          "name": "[1.20] Concrete Factory By @Kassius and @Lainux ",
-          "description": "concrete, mid-game",
-          "dimensions": {
-            "w": 13,
-            "h": 14,
-            "d": 17
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "mid-game"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1-20-concrete-factory-by-kassius-and-lainux-269ca7c2.schem",
-          "source": "minemev",
-          "downloads": 626
-        },
-        {
-          "id": "mv-1-21-cobblestone-farm-x24-da6e7c18",
-          "name": "[1.21]Cobblestone Farm x24",
-          "description": "block-farming, cobblestone",
-          "dimensions": {
-            "w": 70,
-            "h": 24,
-            "d": 74
-          },
-          "block_count": 0,
-          "tags": [
-            "block-farming",
-            "cobblestone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-1-21-cobblestone-farm-x24-da6e7c18.schem",
-          "source": "minemev",
-          "downloads": 463
-        },
-        {
-          "id": "mv-adrisaga-1-19-cobblefarm-480k-d11aae8d",
-          "name": "[Adrisaga] (1.19+) CobbleFarm 480k ",
-          "description": "block-farming, cobblestone",
-          "dimensions": {
-            "w": 21,
-            "h": 37,
-            "d": 21
-          },
-          "block_count": 0,
-          "tags": [
-            "block-farming",
-            "cobblestone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-adrisaga-1-19-cobblefarm-480k-d11aae8d.schem",
-          "source": "minemev",
-          "downloads": 1360
-        },
-        {
-          "id": "mv-floppy-melon-pumpkin-farm-a4a10bc7",
-          "name": "[Floppy] Melon/Pumpkin Farm",
-          "description": "pumpkin, resource-farming",
-          "dimensions": {
-            "w": 248,
-            "h": 16,
-            "d": 79
-          },
-          "block_count": 0,
-          "tags": [
-            "pumpkin",
-            "resource-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-floppy-melon-pumpkin-farm-a4a10bc7.schem",
-          "source": "minemev",
-          "downloads": 317
-        },
-        {
-          "id": "mv-mechanist-basalt-generator-465k-h-ba733638",
-          "name": "[Mechanist] Basalt Generator 465k/h ",
-          "description": "basalt, block-farming",
-          "dimensions": {
-            "w": 16,
-            "h": 26,
-            "d": 25
-          },
-          "block_count": 0,
-          "tags": [
-            "basalt",
-            "block-farming"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-mechanist-basalt-generator-465k-h-ba733638.schem",
-          "source": "minemev",
-          "downloads": 266
-        },
-        {
-          "id": "mv-roziry-432k-concrete-factory-for-bread-duper-13be6b0f",
-          "name": "[Roziry]432k Concrete Factory for bread duper",
-          "description": "concrete, late-game",
-          "dimensions": {
-            "w": 17,
-            "h": 28,
-            "d": 43
-          },
-          "block_count": 0,
-          "tags": [
-            "concrete",
-            "late-game"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-roziry-432k-concrete-factory-for-bread-duper-13be6b0f.schem",
-          "source": "minemev",
-          "downloads": 302
-        },
-        {
-          "id": "mv-haohandh-woshixingreng-1m-compact-cobblestone-farm-v3-3946c1d9",
-          "name": "[haohandh & woshixingreng]1M Compact Cobblestone Farm V3",
-          "description": "mid-game, stone",
-          "dimensions": {
-            "w": 19,
-            "h": 17,
-            "d": 19
-          },
-          "block_count": 0,
-          "tags": [
-            "mid-game",
-            "stone"
-          ],
-          "author": "minemev/minemev",
-          "skill_level": 0,
-          "file": "mv-haohandh-woshixingreng-1m-compact-cobblestone-farm-v3-3946c1d9.schem",
-          "source": "minemev",
-          "downloads": 165
-        }
-      ],
-      "count": 34
     },
     "tree-farms": {
       "blueprints": [
