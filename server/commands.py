@@ -7,7 +7,7 @@ import json
 import logging
 import re
 
-from server.schematics import browse_schematics, inspect_schematic, build_schematic_command
+from server.schematics import browse_schematics, search_schematics, inspect_schematic, build_schematic_command
 
 logger = logging.getLogger("minecraft-god")
 
@@ -471,7 +471,10 @@ def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:
         except (json.JSONDecodeError, AttributeError):
             continue
 
-        if name == "browse_schematics":
+        if name == "search_schematics":
+            query = args.get("query", "")
+            results[tc.id] = search_schematics(query)
+        elif name == "browse_schematics":
             category = args.get("category", "all")
             results[tc.id] = browse_schematics(category)
         elif name == "inspect_schematic":
