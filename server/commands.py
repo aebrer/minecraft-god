@@ -240,6 +240,9 @@ def _summon_mob(args: dict) -> list[dict] | None:
 
     near_player = args.get("near_player")
     location = args.get("location", "~ ~ ~")
+    if not _COORD_RE.match(location):
+        logger.warning(f"Blocked invalid summon location: {location}")
+        return None
     count = min(max(args.get("count", 1), 1), 5)  # clamp 1-5
 
     commands = []
@@ -284,6 +287,9 @@ def _give_item(args: dict) -> dict | None:
     if not _validate_player_target(player):
         return None
     item = args.get("item", "").lower().replace("minecraft:", "")
+    if not re.match(r"^[a-z0-9_]+$", item):
+        logger.warning(f"Blocked invalid item name: {item}")
+        return None
     if item in BLOCKED_ITEMS:
         logger.warning(f"Blocked dangerous item: {item}")
         return None
@@ -298,6 +304,9 @@ def _clear_item(args: dict) -> dict | None:
     item = args.get("item", "")
     if item:
         item = item.lower().replace("minecraft:", "")
+        if not re.match(r"^[a-z0-9_]+$", item):
+            logger.warning(f"Blocked invalid item name: {item}")
+            return None
         return _cmd(f"clear {player} minecraft:{item}")
     else:
         return _cmd(f"clear {player}")
@@ -306,13 +315,24 @@ def _clear_item(args: dict) -> dict | None:
 def _strike_lightning(args: dict) -> dict | None:
     near_player = args.get("near_player")
     offset = args.get("offset", "~ ~ ~")
+    if not _COORD_RE.match(offset):
+        logger.warning(f"Blocked invalid lightning offset: {offset}")
+        return None
     return _cmd(f"summon minecraft:lightning_bolt {offset}", target_player=near_player)
+
+
+_SOUND_RE = re.compile(r"^[a-z0-9_.:/-]+$")
 
 
 def _play_sound(args: dict) -> dict | None:
     sound = args.get("sound", "")
     target = args.get("target_player", "@a")
+    if not _validate_player_target(target):
+        return None
     sound = sound if sound.startswith("minecraft:") else f"minecraft:{sound}"
+    if not _SOUND_RE.match(sound):
+        logger.warning(f"Blocked invalid sound: {sound}")
+        return None
     return _cmd(f"playsound {sound} master {target}")
 
 
@@ -336,6 +356,8 @@ def _teleport_player(args: dict) -> dict | None:
 def _assign_mission(args: dict, source: str = "kind_god") -> list[dict]:
     """Send a mission as title + subtitle + broadcast chat announcement."""
     player = args.get("player", "@a")
+    if not _validate_player_target(player):
+        return []
     title = args.get("mission_title", "A Task")
     description = args.get("mission_description", "")
     reward_hint = args.get("reward_hint", "")

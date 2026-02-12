@@ -1,6 +1,3 @@
-# Bedrock Dedicated Server (legacy, downloaded)
-bds/
-
 # Paper server (runtime files, downloaded jar, world data)
 paper/*.jar
 paper/*.yml
@@ -44,8 +41,9 @@ backups/
 # Runtime data (memory files are server-specific)
 data/*.json
 
-# Schematic pipeline raw cache (1.6GB of scraped HTML)
+# Schematic pipeline (scraped data + converted output — not redistributable)
 scripts/schematics/data/
+scripts/schematics/schematics/
 
 # OS
 .DS_Store

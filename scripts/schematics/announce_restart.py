@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Announce a pending server restart with a countdown."""
 
+import os
 import subprocess
 import time
 import sys
 
 
-RCON_PORT = "25575"
-RCON_PASS = "RCON_PASSWORD_REDACTED"
+RCON_PORT = os.environ.get("RCON_PORT", "25575")
+RCON_PASS = os.environ.get("RCON_PASS", "")
+
+if not RCON_PASS:
+    print("ERROR: RCON_PASS environment variable not set.")
+    print("Usage: RCON_PASS=yourpassword python3 announce_restart.py")
+    sys.exit(1)
 
 
 def rcon(command: str):
