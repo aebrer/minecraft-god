@@ -313,7 +313,7 @@ async def _god_tick_inner(praying_player: str | None = None):
             # LLM call failed — notify players
             command_queue.extend(_god_failure_commands("deep", target=intercept_target))
             _recent_logs.append({"time": tick_ts, "god": "deep", "action": "error",
-                                 "prayer": praying_player})
+                                 "error": deep_god.last_error, "prayer": praying_player})
             commands = []
 
         # Notify the Kind God that the Other acted
@@ -328,7 +328,7 @@ async def _god_tick_inner(praying_player: str | None = None):
             # LLM call failed — notify players
             command_queue.extend(_god_failure_commands("kind", target=intercept_target))
             _recent_logs.append({"time": tick_ts, "god": "kind", "action": "error",
-                                 "prayer": praying_player})
+                                 "error": kind_god.last_error, "prayer": praying_player})
             commands = []
 
     if commands:
@@ -354,7 +354,8 @@ async def _god_tick_inner(praying_player: str | None = None):
         if herald_commands is None:
             # LLM call failed — notify players
             command_queue.extend(_god_failure_commands("herald"))
-            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "error"})
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "error",
+                                 "error": herald_god.last_error})
         elif herald_commands:
             command_queue.extend(herald_commands)
             logger.info(f"Queued {len(herald_commands)} Herald commands")

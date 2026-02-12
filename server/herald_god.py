@@ -104,6 +104,7 @@ class HeraldGod:
     def __init__(self):
         self.conversation_history: list[dict] = []
         self._last_spoke: float = 0
+        self.last_error: str | None = None
 
     def should_act(self, event_summary: str | None) -> bool:
         """Determine whether the Herald should speak this cycle.
@@ -145,8 +146,9 @@ class HeraldGod:
                 tool_choice="auto",
                 temperature=0.9,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Herald LLM call failed")
+            self.last_error = f"{type(exc).__name__}: {exc}"
             self.conversation_history.pop()
             return None
 

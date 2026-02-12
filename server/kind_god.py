@@ -423,6 +423,7 @@ class KindGod:
         self.conversation_history: list[dict] = []
         self.action_count: int = 0  # tracks interventions for Deep God trigger
         self.memory = KindGodMemory(MEMORY_FILE)
+        self.last_error: str | None = None
 
     async def think(self, event_summary: str) -> list[dict]:
         """Process events and return Minecraft commands."""
@@ -449,8 +450,9 @@ class KindGod:
                     tool_choice="auto",
                     temperature=0.9,
                 )
-            except Exception:
+            except Exception as exc:
                 logger.exception("Kind God LLM call failed")
+                self.last_error = f"{type(exc).__name__}: {exc}"
                 if turn == 0:
                     self.conversation_history.pop()
                     return None  # signal failure on first call

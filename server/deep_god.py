@@ -192,6 +192,7 @@ DEEP_ORES = {
 class DeepGod:
     def __init__(self):
         self.conversation_history: list[dict] = []
+        self.last_error: str | None = None
 
     def should_act(self, event_summary: str | None, player_status: dict | None,
                    kind_god_action_count: int, praying_player: str | None = None) -> bool:
@@ -286,8 +287,9 @@ class DeepGod:
                 tool_choice="auto",
                 temperature=0.7,  # less creative, more consistent
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Deep God LLM call failed")
+            self.last_error = f"{type(exc).__name__}: {exc}"
             self.conversation_history.pop()
             return None
 
