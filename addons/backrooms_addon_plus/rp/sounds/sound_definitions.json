@@ -1,9 +1,0 @@
-{
-  "music.bac.backroom": {
-    "category": "hostile",
-    "min_distance": 100.0,
-    "sounds": [
-      "sounds/backrooms/mob/chasing"
-    ]
-  }
-}

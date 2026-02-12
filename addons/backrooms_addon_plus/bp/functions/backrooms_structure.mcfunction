@@ -1,1 +1,0 @@
-structure load noclip_structure ~ ~-5 ~5

@@ -1,11 +1,11 @@
 #!/bin/bash
-# Back up the Minecraft world. Stops BDS briefly for consistency (LevelDB).
+# Back up the Minecraft world. Stops Paper briefly for a consistent snapshot.
 # Keeps a rolling window of backups, deleting the oldest when over the limit.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-WORLD_DIR="$PROJECT_DIR/bds/worlds/God World"
+WORLD_DIR="$PROJECT_DIR/paper/world"
 BACKUP_DIR="$PROJECT_DIR/backups"
 MAX_BACKUPS=6
 
@@ -22,18 +22,18 @@ if [ ! -d "$WORLD_DIR" ]; then
     exit 1
 fi
 
-# Stop BDS for a consistent snapshot
-echo "  Stopping BDS..."
-systemctl --user stop minecraft-god-bds 2>/dev/null || true
+# Stop Paper for a consistent snapshot
+echo "  Stopping Paper..."
+systemctl --user stop minecraft-god-paper 2>/dev/null || true
 sleep 2
 
 # Create backup
 echo "  Archiving world..."
-tar -czf "$BACKUP_FILE" -C "$PROJECT_DIR/bds/worlds" "God World"
+tar -czf "$BACKUP_FILE" -C "$PROJECT_DIR/paper" "world"
 
-# Restart BDS
-echo "  Restarting BDS..."
-systemctl --user start minecraft-god-bds 2>/dev/null || true
+# Restart Paper
+echo "  Restarting Paper..."
+systemctl --user start minecraft-god-paper 2>/dev/null || true
 
 # Get backup size
 SIZE=$(du -h "$BACKUP_FILE" | cut -f1)

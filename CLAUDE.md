@@ -140,7 +140,3 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - Backend restarts are safe without announcement (just a few seconds of god silence)
 - Paper restarts kick all players — always announce first
 
-## Migration from Bedrock
-This project was originally built on Bedrock Dedicated Server with a JavaScript behavior pack.
-Ported to Paper MC (Java Edition) on 2026-02-09. The `behavior_pack/` directory contains
-the legacy Bedrock JS code. The `bds/` directory (not tracked) contained the old BDS installation.

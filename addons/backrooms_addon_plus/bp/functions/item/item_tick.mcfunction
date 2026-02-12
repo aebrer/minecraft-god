@@ -1,1 +1,0 @@
-execute as @a at @s run execute if block ~ ~ ~ hh:keys run function item/give_item
