@@ -4,6 +4,7 @@ import com.google.gson.*;
 import net.sandrohc.schematic4j.SchematicLoader;
 import net.sandrohc.schematic4j.schematic.Schematic;
 import org.bukkit.*;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
@@ -577,12 +578,41 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                         .thenComparingInt(p -> p.x)
                         .thenComparingInt(p -> p.z));
 
+                // Compute bounding box for terrain clearing
+                int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+                int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+                for (BlockPlacement bp : placements) {
+                    minX = Math.min(minX, bp.x); maxX = Math.max(maxX, bp.x);
+                    minY = Math.min(minY, bp.y); maxY = Math.max(maxY, bp.y);
+                    minZ = Math.min(minZ, bp.z); maxZ = Math.max(maxZ, bp.z);
+                }
+                final int clearMinX = minX, clearMinY = minY, clearMinZ = minZ;
+                final int clearMaxX = maxX, clearMaxY = maxY, clearMaxZ = maxZ;
+
                 getLogger().info("Schematic " + blueprintId + ": " + placements.size()
                         + " blocks, placing progressively at " + originX + "," + originY + "," + originZ);
 
                 // Start progressive placement on the main thread
                 Bukkit.getScheduler().runTask(this, () -> {
                     World world = Bukkit.getWorlds().get(0); // overworld
+
+                    // Clear terrain in the bounding box, skipping protected blocks
+                    int cleared = 0;
+                    for (int y = clearMinY; y <= clearMaxY; y++) {
+                        for (int x = clearMinX; x <= clearMaxX; x++) {
+                            for (int z = clearMinZ; z <= clearMaxZ; z++) {
+                                Block block = world.getBlockAt(x, y, z);
+                                if (!block.getType().isAir() && !isProtectedBlock(block.getType())) {
+                                    block.setType(Material.AIR, false);
+                                    cleared++;
+                                }
+                            }
+                        }
+                    }
+                    if (cleared > 0) {
+                        getLogger().info("Schematic " + blueprintId + ": cleared " + cleared
+                                + " terrain blocks from build area");
+                    }
 
                     // Lightning strike at build start
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
@@ -607,6 +637,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     private class SchematicPlacer extends BukkitRunnable {
         private final World world;
         private final Queue<BlockPlacement> queue;
+        private final List<BlockPlacement> allPlacements;
         private final String blueprintId;
         private final int originX, originY, originZ;
         private final int blocksPerTick;
@@ -617,6 +648,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                         int originX, int originY, int originZ) {
             this.world = world;
             this.queue = new ConcurrentLinkedQueue<>(placements);
+            this.allPlacements = placements;
             this.blueprintId = blueprintId;
             this.originX = originX;
             this.originY = originY;
@@ -635,6 +667,11 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 if (bp == null) break;
                 try {
                     Block block = world.getBlockAt(bp.x, bp.y, bp.z);
+                    // Don't overwrite player beds, chests, etc.
+                    if (isProtectedBlock(block.getType())) {
+                        totalPlaced++;
+                        continue;
+                    }
                     BlockData data = Bukkit.createBlockData(bp.blockState);
                     block.setBlockData(data, false); // skip physics for performance
                     placed++;
@@ -655,6 +692,22 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             if (queue.isEmpty()) {
                 this.cancel();
                 getLogger().info("Schematic " + blueprintId + " complete: " + totalPlaced + " blocks placed");
+
+                // Tick all placed blocks to activate redstone, water flow, etc.
+                // setBlockData(data, true) only notifies neighbors — tick() actually
+                // schedules the block itself (repeaters start cycling, observers fire, etc.)
+                int ticked = 0;
+                for (BlockPlacement bp : allPlacements) {
+                    try {
+                        Block block = world.getBlockAt(bp.x, bp.y, bp.z);
+                        if (!block.getType().isAir()) {
+                            block.tick();
+                            ticked++;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                getLogger().info("Schematic " + blueprintId + ": ticked " + ticked + " blocks");
+
                 // Completion effects
                 world.spawnParticle(Particle.TOTEM_OF_UNDYING,
                         originX + 0.5, originY + 5, originZ + 0.5,
@@ -664,6 +717,33 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                                 + originX + " " + originY + " " + originZ + " 2 1");
             }
         }
+    }
+
+    // ─── Protected Blocks ──────────────────────────────────────────────────────────
+
+    /** Blocks that should never be overwritten by schematic terrain clearing. */
+    private static final Set<Material> PROTECTED_BLOCKS = Set.of(
+            // Player spawn points
+            Material.WHITE_BED, Material.ORANGE_BED, Material.MAGENTA_BED, Material.LIGHT_BLUE_BED,
+            Material.YELLOW_BED, Material.LIME_BED, Material.PINK_BED, Material.GRAY_BED,
+            Material.LIGHT_GRAY_BED, Material.CYAN_BED, Material.PURPLE_BED, Material.BLUE_BED,
+            Material.BROWN_BED, Material.GREEN_BED, Material.RED_BED, Material.BLACK_BED,
+            Material.RESPAWN_ANCHOR,
+            // Storage
+            Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL, Material.ENDER_CHEST,
+            Material.SHULKER_BOX, Material.WHITE_SHULKER_BOX, Material.ORANGE_SHULKER_BOX,
+            Material.MAGENTA_SHULKER_BOX, Material.LIGHT_BLUE_SHULKER_BOX, Material.YELLOW_SHULKER_BOX,
+            Material.LIME_SHULKER_BOX, Material.PINK_SHULKER_BOX, Material.GRAY_SHULKER_BOX,
+            Material.LIGHT_GRAY_SHULKER_BOX, Material.CYAN_SHULKER_BOX, Material.PURPLE_SHULKER_BOX,
+            Material.BLUE_SHULKER_BOX, Material.BROWN_SHULKER_BOX, Material.GREEN_SHULKER_BOX,
+            Material.RED_SHULKER_BOX, Material.BLACK_SHULKER_BOX,
+            // Other valuables
+            Material.BEACON, Material.ENCHANTING_TABLE, Material.ANVIL,
+            Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL
+    );
+
+    private static boolean isProtectedBlock(Material mat) {
+        return PROTECTED_BLOCKS.contains(mat);
     }
 
     // ─── Block State Rotation ─────────────────────────────────────────────────────
