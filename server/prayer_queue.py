@@ -49,12 +49,25 @@ class DivineRequest:
             look_v = p.get("lookingVertical", "ahead")
             biome = p.get("biome", "?")
             x, y, z = loc.get('x', '?'), loc.get('y', '?'), loc.get('z', '?')
+            # Pre-compute "10 blocks in front" so the LLM doesn't need to do coord math
+            # Cardinals: 10 on one axis. Diagonals: 7 on each axis (~9.9 total distance)
+            ahead_str = ""
+            if isinstance(x, (int, float)) and isinstance(z, (int, float)):
+                _FACING_OFFSETS = {
+                    "N": (0, -10), "S": (0, 10), "E": (10, 0), "W": (-10, 0),
+                    "NE": (7, -7), "SE": (7, 7), "SW": (-7, 7), "NW": (-7, -7),
+                }
+                dx, dz = _FACING_OFFSETS.get(facing, (0, 0))
+                if dx or dz:
+                    ahead_x, ahead_z = int(x + dx), int(z + dz)
+                    ahead_str = f"\n    10 blocks in front of player: x={ahead_x}, y={int(y)}, z={ahead_z}"
             info = (
                 f"  - {p['name']}: POSITION: x={x}, y={y}, z={z} "
                 f"in {p.get('dimension', '?')} ({biome}), facing {facing} looking {look_v}, "
                 f"health={p.get('health', '?')}/{p.get('maxHealth', '?')}, "
                 f"food={p.get('foodLevel', '?')}/20, level={p.get('level', '?')}"
             )
+            info += ahead_str
             armor = [a.replace("minecraft:", "") for a in p.get("armor", []) if a != "minecraft:air"]
             info += f"\n    Armor: {', '.join(armor)}" if armor else "\n    Armor: none"
             if p.get("mainHand"):
