@@ -110,7 +110,7 @@ def search_schematics(query: str) -> str:
             f"  {bp['id']}: {bp['name']}\n"
             f"    category: {cat_name} | {d['w']}x{d['h']}x{d['d']}{dl_str}"
         )
-    lines.append(f"\nUse inspect_schematic for details, or build_schematic to construct one directly.")
+    lines.append(f"\nUse build_schematic to construct one. Pick the best match and build it.")
     return "\n".join(lines)
 
 

@@ -328,20 +328,6 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "inspect_schematic",
-            "description": "Examine a specific blueprint's details (dimensions, block count, tags) before deciding to build it.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "blueprint_id": {"type": "string", "description": "The blueprint ID from search or browse results"},
-                },
-                "required": ["blueprint_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "build_schematic",
             "description": "Construct a sacred blueprint at the specified location. The structure rises progressively from the ground with dramatic effects. Use absolute coordinates. Place it IN FRONT of the player based on their facing direction: facing N means lower Z, facing S means higher Z, facing E means higher X, facing W means lower X. Offset by 5-15 blocks from the player so they can see it rise. This is a major divine act — use it for significant moments.",
             "parameters": {
@@ -390,7 +376,7 @@ TOOLS = [
 ]
 
 # Tool names that require a follow-up LLM call (they return data, not commands)
-BROWSING_TOOLS = {"search_schematics", "browse_schematics", "inspect_schematic"}
+BROWSING_TOOLS = {"search_schematics", "browse_schematics"}
 
 
 class KindGod:

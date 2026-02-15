@@ -7,7 +7,7 @@ import json
 import logging
 import re
 
-from server.schematics import browse_schematics, search_schematics, inspect_schematic, build_schematic_command
+from server.schematics import browse_schematics, search_schematics, build_schematic_command
 
 logger = logging.getLogger("minecraft-god")
 
@@ -447,8 +447,5 @@ def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:
         elif name == "browse_schematics":
             category = args.get("category", "all")
             results[tc.id] = browse_schematics(category)
-        elif name == "inspect_schematic":
-            blueprint_id = args.get("blueprint_id", "")
-            results[tc.id] = inspect_schematic(blueprint_id)
 
     return results
