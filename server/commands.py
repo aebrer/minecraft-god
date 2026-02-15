@@ -24,9 +24,6 @@ GOD_CHAT_STYLE = {
     "herald": {"name": "The Herald", "color": "green"},
 }
 
-# Max volume for fill commands (prevents massive world edits)
-MAX_FILL_VOLUME = 500
-
 # Dangerous items that must never be given to players
 BLOCKED_ITEMS = {
     "command_block", "repeating_command_block", "chain_command_block",
@@ -135,10 +132,6 @@ def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | N
         return _teleport_player(args)
     elif name == "assign_mission":
         return _assign_mission(args, source)
-    elif name == "place_block":
-        return _place_block(args)
-    elif name == "fill_blocks":
-        return _fill_blocks(args)
     elif name == "build_schematic":
         return _build_schematic(args)
     elif name == "undo_last_build":
@@ -419,53 +412,6 @@ def _validate_coordinate(val) -> int | None:
     except (TypeError, ValueError):
         pass
     return None
-
-
-def _place_block(args: dict) -> dict | None:
-    block = _validate_block(args.get("block", ""))
-    if not block:
-        return None
-    x = _validate_coordinate(args.get("x"))
-    y = _validate_coordinate(args.get("y"))
-    z = _validate_coordinate(args.get("z"))
-    if x is None or y is None or z is None:
-        logger.warning(f"Blocked place_block with invalid coordinates: {args}")
-        return None
-    return _cmd(f"setblock {x} {y} {z} minecraft:{block}")
-
-
-def _fill_blocks(args: dict) -> dict | None:
-    block = _validate_block(args.get("block", ""))
-    if not block:
-        return None
-
-    x1 = _validate_coordinate(args.get("x1"))
-    y1 = _validate_coordinate(args.get("y1"))
-    z1 = _validate_coordinate(args.get("z1"))
-    x2 = _validate_coordinate(args.get("x2"))
-    y2 = _validate_coordinate(args.get("y2"))
-    z2 = _validate_coordinate(args.get("z2"))
-
-    coords = [x1, y1, z1, x2, y2, z2]
-    if any(c is None for c in coords):
-        logger.warning(f"Blocked fill_blocks with invalid coordinates: {args}")
-        return None
-
-    # Calculate volume and enforce cap
-    dx = abs(x2 - x1) + 1
-    dy = abs(y2 - y1) + 1
-    dz = abs(z2 - z1) + 1
-    volume = dx * dy * dz
-
-    if volume > MAX_FILL_VOLUME:
-        logger.warning(f"Blocked fill_blocks: volume {volume} exceeds max {MAX_FILL_VOLUME}")
-        return None
-
-    mode = args.get("mode", "replace").lower()
-    if mode not in ("replace", "hollow", "outline", "keep"):
-        mode = "replace"
-
-    return _cmd(f"fill {x1} {y1} {z1} {x2} {y2} {z2} minecraft:{block} {mode}")
 
 
 def _build_schematic(args: dict) -> dict | None:
