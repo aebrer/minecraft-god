@@ -1,8 +1,8 @@
-"""Prayer queue: FIFO queue of prayers with snapshot context.
+"""Divine request queue: FIFO queue of player-initiated god/herald invocations.
 
-Each prayer captures the game state at the moment it was spoken,
+Each request captures the game state at the moment it was spoken,
 so the god can respond with accurate context even if the player
-has moved on by the time the prayer is processed.
+has moved on by the time the request is processed.
 """
 
 import asyncio
@@ -10,26 +10,30 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from server.config import PRAYER_KEYWORDS
+from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
 
 logger = logging.getLogger("minecraft-god")
 
-MAX_PRAYER_ATTEMPTS = 5
+MAX_ATTEMPTS = 5
+
+# All keywords that trigger divine requests (prayers + herald invocations)
+_ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS
 
 
-def _is_prayer(message: str) -> bool:
-    """Check if a chat message contains prayer keywords."""
+def _is_divine_request(message: str) -> bool:
+    """Check if a chat message contains any divine request keywords."""
     lower = message.lower()
-    return any(kw in lower for kw in PRAYER_KEYWORDS)
+    return any(kw in lower for kw in _ALL_DIVINE_KEYWORDS)
 
 
 @dataclass
-class Prayer:
-    """A prayer waiting to be answered, with snapshot context."""
+class DivineRequest:
+    """A player-initiated request waiting for divine response."""
     player: str
     message: str
+    request_type: str              # "prayer" or "herald"
     timestamp: float
-    player_snapshot: dict          # full player status dict at prayer time
+    player_snapshot: dict          # full player status dict at request time
     recent_chat: list[dict]       # nearby chat messages for context
     attempts: int = 0
 
@@ -86,57 +90,60 @@ class Prayer:
                 sorted_nearby = sorted(nearby.items(), key=lambda x: -x[1])
                 nearby_str = ", ".join(f"{count} {etype}" for etype, count in sorted_nearby)
                 info += f"\n    Nearby entities (32 blocks): {nearby_str}"
-            sections.append("PRAYING PLAYER:\n" + info)
 
-        # The prayer itself plus surrounding non-prayer chat
-        # Filter out other players' prayers so the god only sees this one
+            label = "INVOKING PLAYER" if self.request_type == "herald" else "PRAYING PLAYER"
+            sections.append(f"{label}:\n" + info)
+
+        # The request itself plus surrounding non-divine chat
+        # Filter out other players' prayers/herald invocations so the god only sees this one
         chat_lines = []
         for c in self.recent_chat:
             msg = c.get("message", "")
             sender = c.get("player", "?")
-            is_this_prayer = (sender == self.player and msg == self.message)
-            is_other_prayer = (not is_this_prayer and _is_prayer(msg))
-            if not is_other_prayer:
+            is_this_request = (sender == self.player and msg == self.message)
+            is_other_request = (not is_this_request and _is_divine_request(msg))
+            if not is_other_request:
                 chat_lines.append(f'  [PLAYER CHAT] {sender}: "{msg}"')
-        # Make sure the prayer itself is included even if it wasn't in recent_chat
-        prayer_line = f'  [PLAYER CHAT] {self.player}: "{self.message}"'
-        if prayer_line not in chat_lines:
-            chat_lines.append(prayer_line)
+        # Make sure the request itself is included even if it wasn't in recent_chat
+        request_line = f'  [PLAYER CHAT] {self.player}: "{self.message}"'
+        if request_line not in chat_lines:
+            chat_lines.append(request_line)
         if chat_lines:
             sections.append("CHAT:\n" + "\n".join(chat_lines))
 
-        return "\n\n".join(sections) if sections else f'{self.player} prayed: "{self.message}"'
+        return "\n\n".join(sections) if sections else f'{self.player}: "{self.message}"'
 
 
-class PrayerQueue:
-    """FIFO queue of prayers awaiting divine response."""
+class DivineRequestQueue:
+    """FIFO queue of divine requests (prayers + herald invocations)."""
 
     def __init__(self):
-        self._queue: asyncio.Queue[Prayer] = asyncio.Queue()
+        self._queue: asyncio.Queue[DivineRequest] = asyncio.Queue()
 
-    def enqueue(self, prayer: Prayer):
-        self._queue.put_nowait(prayer)
+    def enqueue(self, request: DivineRequest):
+        self._queue.put_nowait(request)
         logger.info(
-            f"Prayer queued from {prayer.player}: \"{prayer.message[:60]}\" "
-            f"(queue depth: {self._queue.qsize()})"
+            f"[{request.request_type}] Queued from {request.player}: "
+            f"\"{request.message[:60]}\" (queue depth: {self._queue.qsize()})"
         )
 
-    async def dequeue(self) -> Prayer:
-        """Block until a prayer is available."""
+    async def dequeue(self) -> DivineRequest:
+        """Block until a request is available."""
         return await self._queue.get()
 
-    def requeue(self, prayer: Prayer):
-        """Put a failed prayer back for retry."""
-        prayer.attempts += 1
-        if prayer.attempts < MAX_PRAYER_ATTEMPTS:
-            self._queue.put_nowait(prayer)
+    def requeue(self, request: DivineRequest):
+        """Put a failed request back for retry."""
+        request.attempts += 1
+        if request.attempts < MAX_ATTEMPTS:
+            self._queue.put_nowait(request)
             logger.info(
-                f"Prayer from {prayer.player} requeued (attempt {prayer.attempts}/{MAX_PRAYER_ATTEMPTS})"
+                f"[{request.request_type}] {request.player} requeued "
+                f"(attempt {request.attempts}/{MAX_ATTEMPTS})"
             )
         else:
             logger.warning(
-                f"Prayer from {prayer.player} abandoned after {MAX_PRAYER_ATTEMPTS} attempts: "
-                f"\"{prayer.message[:60]}\""
+                f"[{request.request_type}] {request.player} abandoned after "
+                f"{MAX_ATTEMPTS} attempts: \"{request.message[:60]}\""
             )
 
     @property

@@ -23,7 +23,7 @@ class EventBuffer:
             else:
                 self._events.append(event)
 
-    def has_prayer(self) -> bool:
+    def has_divine_request(self) -> bool:
         """Check if any recent chat event contains prayer or herald keywords."""
         with self._lock:
             for event in self._events:
@@ -54,30 +54,31 @@ class EventBuffer:
         with self._lock:
             return self._latest_player_status
 
-    def drain_and_summarize(self, death_memorial=None, filter_prayers: bool = False) -> str | None:
+    def drain_and_summarize(self, death_memorial=None, filter_divine: bool = False) -> str | None:
         """Drain the buffer and return a human-readable summary for the LLM.
 
         Returns None if nothing happened worth reporting.
-        If filter_prayers is True, chat messages containing prayer keywords
-        are excluded (they'll be handled by the prayer queue instead).
+        If filter_divine is True, chat messages containing prayer or herald keywords
+        are excluded (they'll be handled by the divine request queue instead).
         """
         with self._lock:
             events = self._events.copy()
             self._events.clear()
             player_status = self._latest_player_status
 
-        if filter_prayers:
+        if filter_divine:
+            _all_keywords = PRAYER_KEYWORDS | HERALD_KEYWORDS
             filtered = []
             stripped_count = 0
             for e in events:
                 if e.get("type") == "chat":
                     message = e.get("message", "").lower()
-                    if any(kw in message for kw in PRAYER_KEYWORDS):
+                    if any(kw in message for kw in _all_keywords):
                         stripped_count += 1
                         continue
                 filtered.append(e)
             if stripped_count:
-                logger.info(f"[tick] Filtered {stripped_count} prayer chat(s) from tick context")
+                logger.info(f"[tick] Filtered {stripped_count} divine request chat(s) from tick context")
             events = filtered
 
         if not events:
