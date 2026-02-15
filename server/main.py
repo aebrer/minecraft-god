@@ -29,6 +29,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("minecraft-god")
 
+# Suppress noisy uvicorn websocket warnings (Paper plugin sends Upgrade headers)
+logging.getLogger("uvicorn.error").addFilter(
+    lambda record: "Unsupported upgrade" not in record.getMessage()
+    and "No supported WebSocket" not in record.getMessage()
+)
+
 # Global state
 event_buffer = EventBuffer()
 command_queue: list[dict] = []
@@ -280,6 +286,12 @@ async def _prayer_loop():
 async def _process_divine_request(request: DivineRequest):
     """Process a single divine request (prayer or herald invocation) under _tick_lock."""
     global command_queue
+
+    # If snapshot was empty at enqueue time (e.g. right after restart), try again now
+    if not request.player_snapshot:
+        request.player_snapshot = event_buffer.get_player_snapshot(request.player) or {}
+        if request.player_snapshot:
+            logger.info(f"[{request.request_type}] Late-filled player snapshot for {request.player}")
 
     event_summary = request.build_context()
     player_status = event_buffer.get_player_status()

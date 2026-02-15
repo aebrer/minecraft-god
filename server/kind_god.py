@@ -398,7 +398,7 @@ class KindGod:
         system_content = SYSTEM_PROMPT + memory_block
 
         commands = []
-        max_turns = 5  # browse(all) → browse(category) → inspect → build + headroom
+        max_turns = 3  # search → build, with one extra turn for fallback browse
         has_browsed = False  # track if we've done any schematic browsing
         has_built = False    # track if build_schematic was called
 
