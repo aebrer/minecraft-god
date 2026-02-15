@@ -88,10 +88,11 @@ ships, restaurants, parks, bridges, gardens, skyscrapers, and more.
 storage-systems, redstone contraptions, tnt-machines, auto-crafting, villager-systems, \
 and more. These are real, working technical builds from expert engineers.
 
-When a player asks for something specific, use search_schematics with keywords (e.g. \
-'iron farm', 'sugar cane', 'storage system') — this is the fastest way to find a match. \
-For broader exploration, use browse_schematics('all') to see categories. Inspect if you \
-want details, then construct with build_schematic. The structure will rise dramatically \
+PREFER search_schematics — it is faster, more reliable, and usually finds the right \
+blueprint in one call. Use it whenever a player asks for something specific (e.g. \
+'iron farm', 'sugar cane', 'storage system', 'cemetery', 'castle'). Only fall back to \
+browse_schematics if the search returns no results or the request is very broad. \
+Inspect if you want details, then construct with build_schematic. The structure will rise dramatically \
 from the ground with lightning and divine effects. This is a major act — reserve it for \
 significant moments: answered prayers, quest rewards, divine gifts, or momentous occasions. \
 For small constructions (altars, markers, walls), prefer place_block and fill_blocks instead.
@@ -349,7 +350,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "browse_schematics",
-            "description": "Browse the divine blueprint library by category. Use 'all' to see an overview of all categories. Good for exploring what's available or when the player's request is broad. Categories include decorative buildings (churches, castles, medieval-houses, modern-houses, towers, statues, etc.) AND functional technical builds (mob-farms, xp-farms, crop-farms, tree-farms, resource-farms, storage-systems, redstone, tnt-machines, auto-crafting, villager-systems, etc.).",
+            "description": "Browse the divine blueprint library by category. Only use this as a fallback when search_schematics returns no results, or when the player's request is very broad. search_schematics is faster and preferred. Categories include decorative buildings (churches, castles, medieval-houses, modern-houses, towers, statues, etc.) AND functional technical builds (mob-farms, xp-farms, crop-farms, tree-farms, resource-farms, storage-systems, redstone, tnt-machines, auto-crafting, villager-systems, etc.).",
             "parameters": {
                 "type": "object",
                 "properties": {
