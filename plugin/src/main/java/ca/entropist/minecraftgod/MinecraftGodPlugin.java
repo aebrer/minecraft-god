@@ -200,12 +200,20 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
-        JsonObject data = new JsonObject();
-        data.addProperty("player", event.getPlayer().getName());
-        data.addProperty("message", event.getMessage());
-        data.add("location", locationToJson(event.getPlayer().getLocation()));
-        data.addProperty("dimension", dimensionId(event.getPlayer().getWorld()));
-        sendEvent("chat", data);
+        Player player = event.getPlayer();
+        String message = event.getMessage();
+        // Build full player snapshot on the main thread (needed for block/entity scanning),
+        // then send the chat event with the snapshot embedded.
+        // 1-tick delay is negligible — the player hasn't moved.
+        Bukkit.getScheduler().runTask(this, () -> {
+            JsonObject data = new JsonObject();
+            data.addProperty("player", player.getName());
+            data.addProperty("message", message);
+            data.add("location", locationToJson(player.getLocation()));
+            data.addProperty("dimension", dimensionId(player.getWorld()));
+            data.add("playerSnapshot", buildPlayerSnapshot(player));
+            sendEvent("chat", data);
+        });
     }
 
     @EventHandler
@@ -326,6 +334,136 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
         sendEvent("weather_change", data);
     }
 
+    // ─── Player Snapshot ────────────────────────────────────────────────────────
+
+    /**
+     * Build a full snapshot of a player's state: position, health, inventory,
+     * nearby entities/blocks, what they're looking at, etc.
+     *
+     * MUST be called on the main server thread (accesses world state).
+     * Used by both the periodic status beacon and inline with chat events
+     * so that prayers always have accurate context.
+     */
+    private JsonObject buildPlayerSnapshot(Player p) {
+        JsonObject ps = new JsonObject();
+        ps.addProperty("name", p.getName());
+        ps.add("location", locationToJson(p.getLocation()));
+        ps.addProperty("dimension", dimensionId(p.getWorld()));
+        ps.addProperty("health", p.getHealth());
+        ps.addProperty("maxHealth", p.getMaxHealth());
+        ps.addProperty("foodLevel", p.getFoodLevel());
+        ps.addProperty("level", p.getLevel());
+        ps.addProperty("gameMode", p.getGameMode().name().toLowerCase());
+
+        // Facing direction — cardinal from yaw, pitch description
+        float yaw = p.getLocation().getYaw() % 360;
+        if (yaw < 0) yaw += 360;
+        String[] cardinals = {"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
+        String facing = cardinals[Math.round(yaw / 45f) % 8];
+        ps.addProperty("facing", facing);
+        float pitch = p.getLocation().getPitch();
+        String lookVertical = pitch < -45 ? "up" : pitch > 45 ? "down" : "ahead";
+        ps.addProperty("lookingVertical", lookVertical);
+
+        // Biome
+        ps.addProperty("biome", p.getLocation().getBlock().getBiome().getKey().toString().replace("minecraft:", ""));
+
+        // Armor
+        JsonArray armor = new JsonArray();
+        var equipment = p.getInventory();
+        if (equipment.getHelmet() != null)
+            armor.add(equipment.getHelmet().getType().getKey().toString());
+        if (equipment.getChestplate() != null)
+            armor.add(equipment.getChestplate().getType().getKey().toString());
+        if (equipment.getLeggings() != null)
+            armor.add(equipment.getLeggings().getType().getKey().toString());
+        if (equipment.getBoots() != null)
+            armor.add(equipment.getBoots().getType().getKey().toString());
+        ps.add("armor", armor);
+
+        // Main hand item
+        var mainHand = equipment.getItemInMainHand();
+        if (mainHand.getType() != org.bukkit.Material.AIR) {
+            ps.addProperty("mainHand", mainHand.getType().getKey().toString());
+        }
+
+        // Full inventory — aggregate all items by type
+        JsonObject inventory = new JsonObject();
+        var inv = p.getInventory();
+        for (var stack : inv.getContents()) {
+            if (stack == null || stack.getType() == org.bukkit.Material.AIR) continue;
+            String id = stack.getType().getKey().toString().replace("minecraft:", "");
+            int existing = inventory.has(id) ? inventory.get(id).getAsInt() : 0;
+            inventory.addProperty(id, existing + stack.getAmount());
+        }
+        ps.add("inventory", inventory);
+
+        // Nearby entities within 32 blocks — aggregate by type
+        JsonObject nearbyEntities = new JsonObject();
+        // Close-range entities within 8 blocks — immediate surroundings
+        JsonObject closeEntities = new JsonObject();
+        for (Entity entity : p.getNearbyEntities(32, 32, 32)) {
+            var type = entity.getType();
+            if (type == org.bukkit.entity.EntityType.ITEM
+                    || type == org.bukkit.entity.EntityType.EXPERIENCE_ORB
+                    || type == org.bukkit.entity.EntityType.ARROW
+                    || type == org.bukkit.entity.EntityType.MARKER) continue;
+            String id = type.getKey().toString().replace("minecraft:", "");
+            int existing = nearbyEntities.has(id) ? nearbyEntities.get(id).getAsInt() : 0;
+            nearbyEntities.addProperty(id, existing + 1);
+            // Also check if within close range
+            if (entity.getLocation().distance(p.getLocation()) <= CLOSE_RANGE) {
+                int closeExisting = closeEntities.has(id) ? closeEntities.get(id).getAsInt() : 0;
+                closeEntities.addProperty(id, closeExisting + 1);
+            }
+        }
+        ps.add("nearbyEntities", nearbyEntities);
+        ps.add("closeEntities", closeEntities);
+
+        // Notable blocks within 8 blocks
+        JsonObject notableBlocks = new JsonObject();
+        Location pLoc = p.getLocation();
+        int px = pLoc.getBlockX(), py = pLoc.getBlockY(), pz = pLoc.getBlockZ();
+        World world = p.getWorld();
+        for (int dx = -BLOCK_SCAN_RANGE; dx <= BLOCK_SCAN_RANGE; dx++) {
+            for (int dy = -BLOCK_SCAN_RANGE; dy <= BLOCK_SCAN_RANGE; dy++) {
+                for (int dz = -BLOCK_SCAN_RANGE; dz <= BLOCK_SCAN_RANGE; dz++) {
+                    var block = world.getBlockAt(px + dx, py + dy, pz + dz);
+                    if (NOTABLE_BLOCKS.contains(block.getType())) {
+                        String id = block.getType().getKey().toString().replace("minecraft:", "");
+                        int existing = notableBlocks.has(id) ? notableBlocks.get(id).getAsInt() : 0;
+                        notableBlocks.addProperty(id, existing + 1);
+                    }
+                }
+            }
+        }
+        ps.add("notableBlocks", notableBlocks);
+
+        // What the player is looking at (crosshair target)
+        var targetBlock = p.getTargetBlockExact(5);
+        if (targetBlock != null && targetBlock.getType() != org.bukkit.Material.AIR) {
+            JsonObject lookingAt = new JsonObject();
+            lookingAt.addProperty("block", targetBlock.getType().getKey().toString().replace("minecraft:", ""));
+            lookingAt.add("blockLocation", locationToJson(targetBlock.getLocation()));
+            ps.add("lookingAt", lookingAt);
+        }
+        var targetEntity = p.getTargetEntity(5);
+        if (targetEntity != null) {
+            if (!ps.has("lookingAt")) {
+                ps.add("lookingAt", new JsonObject());
+            }
+            var lookingAt = ps.getAsJsonObject("lookingAt");
+            String entityId = targetEntity.getType().getKey().toString().replace("minecraft:", "");
+            if (targetEntity instanceof Player) {
+                lookingAt.addProperty("entity", targetEntity.getName());
+            } else {
+                lookingAt.addProperty("entity", entityId);
+            }
+        }
+
+        return ps;
+    }
+
     // ─── Player Status Beacon ───────────────────────────────────────────────────
 
     private void sendPlayerStatus() {
@@ -334,123 +472,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
 
         JsonArray statusArray = new JsonArray();
         for (Player p : players) {
-            JsonObject ps = new JsonObject();
-            ps.addProperty("name", p.getName());
-            ps.add("location", locationToJson(p.getLocation()));
-            ps.addProperty("dimension", dimensionId(p.getWorld()));
-            ps.addProperty("health", p.getHealth());
-            ps.addProperty("maxHealth", p.getMaxHealth());
-            ps.addProperty("foodLevel", p.getFoodLevel());
-            ps.addProperty("level", p.getLevel());
-            ps.addProperty("gameMode", p.getGameMode().name().toLowerCase());
-
-            // Facing direction — cardinal from yaw, pitch description
-            float yaw = p.getLocation().getYaw() % 360;
-            if (yaw < 0) yaw += 360;
-            String[] cardinals = {"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
-            String facing = cardinals[Math.round(yaw / 45f) % 8];
-            ps.addProperty("facing", facing);
-            float pitch = p.getLocation().getPitch();
-            String lookVertical = pitch < -45 ? "up" : pitch > 45 ? "down" : "ahead";
-            ps.addProperty("lookingVertical", lookVertical);
-
-            // Biome
-            ps.addProperty("biome", p.getLocation().getBlock().getBiome().getKey().toString().replace("minecraft:", ""));
-
-            // Armor
-            JsonArray armor = new JsonArray();
-            var equipment = p.getInventory();
-            if (equipment.getHelmet() != null)
-                armor.add(equipment.getHelmet().getType().getKey().toString());
-            if (equipment.getChestplate() != null)
-                armor.add(equipment.getChestplate().getType().getKey().toString());
-            if (equipment.getLeggings() != null)
-                armor.add(equipment.getLeggings().getType().getKey().toString());
-            if (equipment.getBoots() != null)
-                armor.add(equipment.getBoots().getType().getKey().toString());
-            ps.add("armor", armor);
-
-            // Main hand item
-            var mainHand = equipment.getItemInMainHand();
-            if (mainHand.getType() != org.bukkit.Material.AIR) {
-                ps.addProperty("mainHand", mainHand.getType().getKey().toString());
-            }
-
-            // Full inventory — aggregate all items by type
-            JsonObject inventory = new JsonObject();
-            var inv = p.getInventory();
-            for (var stack : inv.getContents()) {
-                if (stack == null || stack.getType() == org.bukkit.Material.AIR) continue;
-                String id = stack.getType().getKey().toString().replace("minecraft:", "");
-                int existing = inventory.has(id) ? inventory.get(id).getAsInt() : 0;
-                inventory.addProperty(id, existing + stack.getAmount());
-            }
-            ps.add("inventory", inventory);
-
-            // Nearby entities within 32 blocks — aggregate by type
-            JsonObject nearbyEntities = new JsonObject();
-            // Close-range entities within 8 blocks — immediate surroundings
-            JsonObject closeEntities = new JsonObject();
-            for (Entity entity : p.getNearbyEntities(32, 32, 32)) {
-                var type = entity.getType();
-                if (type == org.bukkit.entity.EntityType.ITEM
-                        || type == org.bukkit.entity.EntityType.EXPERIENCE_ORB
-                        || type == org.bukkit.entity.EntityType.ARROW
-                        || type == org.bukkit.entity.EntityType.MARKER) continue;
-                String id = type.getKey().toString().replace("minecraft:", "");
-                int existing = nearbyEntities.has(id) ? nearbyEntities.get(id).getAsInt() : 0;
-                nearbyEntities.addProperty(id, existing + 1);
-                // Also check if within close range
-                if (entity.getLocation().distance(p.getLocation()) <= CLOSE_RANGE) {
-                    int closeExisting = closeEntities.has(id) ? closeEntities.get(id).getAsInt() : 0;
-                    closeEntities.addProperty(id, closeExisting + 1);
-                }
-            }
-            ps.add("nearbyEntities", nearbyEntities);
-            ps.add("closeEntities", closeEntities);
-
-            // Notable blocks within 8 blocks
-            JsonObject notableBlocks = new JsonObject();
-            Location pLoc = p.getLocation();
-            int px = pLoc.getBlockX(), py = pLoc.getBlockY(), pz = pLoc.getBlockZ();
-            World world = p.getWorld();
-            for (int dx = -BLOCK_SCAN_RANGE; dx <= BLOCK_SCAN_RANGE; dx++) {
-                for (int dy = -BLOCK_SCAN_RANGE; dy <= BLOCK_SCAN_RANGE; dy++) {
-                    for (int dz = -BLOCK_SCAN_RANGE; dz <= BLOCK_SCAN_RANGE; dz++) {
-                        var block = world.getBlockAt(px + dx, py + dy, pz + dz);
-                        if (NOTABLE_BLOCKS.contains(block.getType())) {
-                            String id = block.getType().getKey().toString().replace("minecraft:", "");
-                            int existing = notableBlocks.has(id) ? notableBlocks.get(id).getAsInt() : 0;
-                            notableBlocks.addProperty(id, existing + 1);
-                        }
-                    }
-                }
-            }
-            ps.add("notableBlocks", notableBlocks);
-
-            // What the player is looking at (crosshair target)
-            var targetBlock = p.getTargetBlockExact(5);
-            if (targetBlock != null && targetBlock.getType() != org.bukkit.Material.AIR) {
-                JsonObject lookingAt = new JsonObject();
-                lookingAt.addProperty("block", targetBlock.getType().getKey().toString().replace("minecraft:", ""));
-                lookingAt.add("blockLocation", locationToJson(targetBlock.getLocation()));
-                ps.add("lookingAt", lookingAt);
-            }
-            var targetEntity = p.getTargetEntity(5);
-            if (targetEntity != null) {
-                if (!ps.has("lookingAt")) {
-                    ps.add("lookingAt", new JsonObject());
-                }
-                var lookingAt = ps.getAsJsonObject("lookingAt");
-                String entityId = targetEntity.getType().getKey().toString().replace("minecraft:", "");
-                if (targetEntity instanceof Player) {
-                    lookingAt.addProperty("entity", targetEntity.getName());
-                } else {
-                    lookingAt.addProperty("entity", entityId);
-                }
-            }
-
-            statusArray.add(ps);
+            statusArray.add(buildPlayerSnapshot(p));
         }
 
         JsonObject data = new JsonObject();

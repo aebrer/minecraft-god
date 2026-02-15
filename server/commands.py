@@ -62,16 +62,17 @@ VALID_EFFECTS = {
 }
 
 
-def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dict]:
+def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> tuple[list[dict], dict[str, str]]:
     """Convert LLM tool calls into a list of command dicts.
 
-    Each command dict has:
-        - "command": the Minecraft command string (without leading /)
-        - "target_player": optional player name for relative commands
+    Returns (commands, errors) where:
+        - commands: list of command dicts (with "command" or "type" key)
+        - errors: dict mapping tool_call_id -> error message for failed calls
 
     source: which god is speaking ("kind_god", "deep_god", "herald")
     """
     commands = []
+    errors = {}
     for tc in tool_calls:
         try:
             name = tc.function.name
@@ -79,6 +80,10 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dic
             logger.info(f"[{source}] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
             result = _translate_one(tc, source)
             if result is None:
+                # Build an error message based on what failed
+                error = _describe_failure(name, args)
+                if error:
+                    errors[tc.id] = error
                 continue
             if isinstance(result, list):
                 commands.extend(result)
@@ -86,6 +91,7 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dic
                 commands.append(result)
         except Exception:
             logger.exception(f"Failed to translate tool call: {tc.function.name}")
+            errors[tc.id] = f"Internal error processing {tc.function.name}"
 
     for cmd in commands:
         if cmd.get("type") == "build_schematic":
@@ -96,7 +102,47 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> list[dic
             target = cmd.get("target_player")
             logger.info(f"[{source}] => cmd: {cmd_str[:120]}" + (f" (target: {target})" if target else ""))
 
-    return commands
+    return commands, errors
+
+
+def _describe_failure(name: str, args: dict) -> str | None:
+    """Return a human-readable error for a failed tool call, or None for silent drops."""
+    if name == "do_nothing":
+        return None  # intentional no-op
+    if name == "build_schematic":
+        bp_id = args.get("blueprint_id", "")
+        from server.schematics import _load_catalog
+        catalog = _load_catalog()
+        # Check if blueprint exists
+        found = False
+        for cat_data in catalog["categories"].values():
+            for bp in cat_data.get("blueprints", []):
+                if bp["id"] == bp_id:
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            return (f"ERROR: Blueprint '{bp_id}' not found. The ID may be misspelled. "
+                    f"Copy the exact ID from the search results and try again.")
+        # Coordinate validation
+        for coord_name in ("x", "y", "z"):
+            val = args.get(coord_name)
+            try:
+                n = int(val)
+                if abs(n) > 30000:
+                    return f"ERROR: Coordinate {coord_name}={val} is out of range (max 30000)."
+            except (TypeError, ValueError):
+                return f"ERROR: Invalid coordinate {coord_name}={val}. Must be an integer."
+    if name == "summon_mob":
+        mob = args.get("mob_type", "").lower().replace("minecraft:", "")
+        if mob not in VALID_MOBS:
+            return f"ERROR: Invalid mob type '{mob}'."
+    if name == "give_effect":
+        effect = args.get("effect", "").lower()
+        if effect not in VALID_EFFECTS:
+            return f"ERROR: Invalid effect '{effect}'."
+    return None
 
 
 def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | None:

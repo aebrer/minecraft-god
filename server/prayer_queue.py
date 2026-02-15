@@ -48,8 +48,9 @@ class DivineRequest:
             facing = p.get("facing", "?")
             look_v = p.get("lookingVertical", "ahead")
             biome = p.get("biome", "?")
+            x, y, z = loc.get('x', '?'), loc.get('y', '?'), loc.get('z', '?')
             info = (
-                f"  - {p['name']}: at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')}) "
+                f"  - {p['name']}: POSITION: x={x}, y={y}, z={z} "
                 f"in {p.get('dimension', '?')} ({biome}), facing {facing} looking {look_v}, "
                 f"health={p.get('health', '?')}/{p.get('maxHealth', '?')}, "
                 f"food={p.get('foodLevel', '?')}/20, level={p.get('level', '?')}"

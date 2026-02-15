@@ -597,8 +597,18 @@ def cmd_catalog(args):
         print("No blueprints found. Run 'fetch' first.")
         return
 
-    # Build hierarchical catalog
-    catalog = {"categories": {}}
+    # Load existing catalog to preserve non-GrabCraft entries (e.g. Minemev)
+    if CATALOG_FILE.exists():
+        with open(CATALOG_FILE) as f:
+            catalog = json.load(f)
+        # Strip existing GrabCraft entries (no "source" field) — they'll be regenerated
+        for cat_data in catalog["categories"].values():
+            cat_data["blueprints"] = [
+                bp for bp in cat_data["blueprints"]
+                if bp.get("source")
+            ]
+    else:
+        catalog = {"categories": {}}
 
     bp_files = sorted(BLUEPRINTS_DIR.glob("*.json"))
     entries_added = 0
@@ -634,15 +644,25 @@ def cmd_catalog(args):
         })
         entries_added += 1
 
-    # Sort categories and blueprints
+    # Sort categories, update counts, remove empties
     for cat in catalog["categories"].values():
         cat["blueprints"].sort(key=lambda b: b["name"])
         cat["count"] = len(cat["blueprints"])
+    catalog["categories"] = {
+        k: v for k, v in catalog["categories"].items()
+        if v["count"] > 0
+    }
+
+    total = sum(c["count"] for c in catalog["categories"].values())
+    preserved = total - entries_added
 
     SCHEM_DIR.mkdir(parents=True, exist_ok=True)
     with open(CATALOG_FILE, "w") as f:
         json.dump(catalog, f, indent=2)
-    print(f"Catalog: {entries_added} blueprints across {len(catalog['categories'])} categories")
+    print(f"Catalog: {total} blueprints across {len(catalog['categories'])} categories")
+    print(f"  GrabCraft: {entries_added} entries (regenerated)")
+    if preserved:
+        print(f"  Other sources: {preserved} entries (preserved)")
     print(f"Saved to {CATALOG_FILE}")
 
     # Print summary

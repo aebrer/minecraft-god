@@ -398,7 +398,7 @@ class KindGod:
         system_content = SYSTEM_PROMPT + memory_block
 
         commands = []
-        max_turns = 3  # search → build, with one extra turn for fallback browse
+        max_turns = 4  # search → build (+ retry on error or fallback browse)
         has_browsed = False  # track if we've done any schematic browsing
         has_built = False    # track if build_schematic was called
 
@@ -470,8 +470,9 @@ class KindGod:
             browse_results = get_schematic_tool_results(browsing_calls) if browsing_calls else {}
 
             # Translate action tool calls to commands
+            action_errors = {}
             if action_calls:
-                new_commands = translate_tool_calls(action_calls, source="kind_god")
+                new_commands, action_errors = translate_tool_calls(action_calls, source="kind_god")
                 commands.extend(new_commands)
 
             # Add tool result messages for ALL tool calls
@@ -482,6 +483,13 @@ class KindGod:
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "content": browse_results[tc.id],
+                    })
+                elif tc.id in action_errors:
+                    # Failed action — feed error back so LLM can retry
+                    self.conversation_history.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": action_errors[tc.id],
                     })
                 else:
                     self.conversation_history.append({
@@ -507,9 +515,13 @@ class KindGod:
             if any(tc.function.name == "build_schematic" for tc in action_calls):
                 has_built = True
 
-            # Continue if browsing tools need follow-up, OR if we've been browsing
-            # but haven't built yet (god did theatrics without the actual build)
-            if browsing_calls:
+            # Continue if: browsing tools need follow-up, action errors need retry,
+            # or we've been browsing but haven't built yet
+            if action_errors:
+                logger.info(f"Kind God had {len(action_errors)} failed tool call(s) "
+                            f"(turn {turn + 1}), retrying...")
+                continue
+            elif browsing_calls:
                 logger.info(f"Kind God browsing schematics (turn {turn + 1}), continuing...")
                 continue
             elif has_browsed and not has_built and action_calls:

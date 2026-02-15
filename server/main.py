@@ -194,7 +194,9 @@ async def receive_event(event: GameEvent):
             # Determine request type: prayer takes priority if both match
             request_type = "prayer" if is_prayer else "herald"
             player_name = event_data.get("player", event_data.get("sender", "?"))
-            player_snapshot = event_buffer.get_player_snapshot(player_name) or {}
+            # Use the inline snapshot from the chat event (built on the plugin's
+            # main thread at the moment the player spoke — always fresh)
+            player_snapshot = event_data.get("playerSnapshot") or {}
             recent_chat = event_buffer.get_recent_chat(limit=10)
             request = DivineRequest(
                 player=player_name,
@@ -286,12 +288,6 @@ async def _prayer_loop():
 async def _process_divine_request(request: DivineRequest):
     """Process a single divine request (prayer or herald invocation) under _tick_lock."""
     global command_queue
-
-    # If snapshot was empty at enqueue time (e.g. right after restart), try again now
-    if not request.player_snapshot:
-        request.player_snapshot = event_buffer.get_player_snapshot(request.player) or {}
-        if request.player_snapshot:
-            logger.info(f"[{request.request_type}] Late-filled player snapshot for {request.player}")
 
     event_summary = request.build_context()
     player_status = event_buffer.get_player_status()
