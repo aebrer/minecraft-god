@@ -33,19 +33,52 @@ class EventBuffer:
                         return True
         return False
 
+    def get_recent_chat(self, limit: int = 10) -> list[dict]:
+        """Return recent chat events (non-destructive) for prayer context snapshots."""
+        with self._lock:
+            chats = [e for e in self._events if e.get("type") == "chat"]
+            return chats[-limit:]
+
+    def get_player_snapshot(self, player_name: str) -> dict | None:
+        """Return the current status dict for a specific player (non-destructive)."""
+        with self._lock:
+            if not self._latest_player_status:
+                return None
+            players = self._latest_player_status.get("players", [])
+            for p in players:
+                if p.get("name", "").lower() == player_name.lower():
+                    return p.copy()
+            return None
+
     def get_player_status(self) -> dict | None:
         with self._lock:
             return self._latest_player_status
 
-    def drain_and_summarize(self, death_memorial=None) -> str | None:
+    def drain_and_summarize(self, death_memorial=None, filter_prayers: bool = False) -> str | None:
         """Drain the buffer and return a human-readable summary for the LLM.
 
         Returns None if nothing happened worth reporting.
+        If filter_prayers is True, chat messages containing prayer keywords
+        are excluded (they'll be handled by the prayer queue instead).
         """
         with self._lock:
             events = self._events.copy()
             self._events.clear()
             player_status = self._latest_player_status
+
+        if filter_prayers:
+            filtered = []
+            stripped_count = 0
+            for e in events:
+                if e.get("type") == "chat":
+                    message = e.get("message", "").lower()
+                    if any(kw in message for kw in PRAYER_KEYWORDS):
+                        stripped_count += 1
+                        continue
+                filtered.append(e)
+            if stripped_count:
+                logger.info(f"[tick] Filtered {stripped_count} prayer chat(s) from tick context")
+            events = filtered
 
         if not events:
             return None

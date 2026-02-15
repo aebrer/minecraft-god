@@ -13,8 +13,7 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4/")
 GOD_MODEL = os.getenv("GOD_MODEL", "glm-5")
 
 # God tick settings
-GOD_TICK_INTERVAL = int(os.getenv("GOD_TICK_INTERVAL", "45"))
-PRAYER_COOLDOWN = int(os.getenv("PRAYER_COOLDOWN", "15"))
+GOD_TICK_INTERVAL = int(os.getenv("GOD_TICK_INTERVAL", "120"))
 MAX_TOOL_CALLS_PER_RESPONSE = 5
 
 # Deep God trigger thresholds

@@ -15,12 +15,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_COOLDOWN, PRAYER_KEYWORDS, HERALD_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
+from server.config import GOD_TICK_INTERVAL, PRAYER_KEYWORDS, HERALD_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
 from server.herald_god import HeraldGod
 from server.deaths import DeathMemorial
+from server.prayer_queue import Prayer, PrayerQueue, MAX_PRAYER_ATTEMPTS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,8 +36,9 @@ kind_god = KindGod()
 deep_god = DeepGod()
 herald_god = HeraldGod()
 death_memorial = DeathMemorial()
-last_prayer_time: float = 0
+prayer_queue = PrayerQueue()
 _tick_task: asyncio.Task | None = None
+_prayer_task: asyncio.Task | None = None
 _tick_lock = asyncio.Lock()
 _ticks_since_consolidation: int = 0
 # Ring buffer of recent god decisions and commands for debugging
@@ -125,6 +127,17 @@ def _god_failure_commands(god_name: str, target: str = "@a") -> list[dict]:
     ]
 
 
+def _prayer_abandoned_commands(player: str) -> list[dict]:
+    """Generate in-game feedback when a prayer is abandoned after max retries."""
+    return [
+        _make_tellraw(
+            "Your prayer dissolves into silence. The gods cannot reach you now.",
+            target=player, color="gray", italic=True,
+        ),
+        {"command": f"playsound minecraft:block.amethyst_block.resonate master {player}"},
+    ]
+
+
 class GameEvent(BaseModel):
     type: str
     # All other fields are dynamic, so we accept anything
@@ -133,18 +146,20 @@ class GameEvent(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the god tick loop on startup, cancel on shutdown."""
-    global _tick_task
+    """Start the god tick loop and prayer loop on startup, cancel on shutdown."""
+    global _tick_task, _prayer_task
     logger.info("minecraft-god backend starting up")
     _tick_task = asyncio.create_task(_god_tick_loop())
+    _prayer_task = asyncio.create_task(_prayer_loop())
     yield
     logger.info("minecraft-god backend shutting down")
-    if _tick_task:
-        _tick_task.cancel()
-        try:
-            await _tick_task
-        except asyncio.CancelledError:
-            pass
+    for task in (_tick_task, _prayer_task):
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     # Flush memory to disk on shutdown
     kind_god.memory._save()
     logger.info("Kind God memory saved")
@@ -163,24 +178,29 @@ async def receive_event(event: GameEvent):
     if event_data.get("type") == "entity_die" and event_data.get("isPlayer"):
         death_memorial.record_death(event_data)
 
-    # Fast-path: if this chat contains prayer or herald keywords, trigger immediate tick
+    # Check chat for prayer or herald keywords
     if event_data.get("type") == "chat":
         message = event_data.get("message", "").lower()
         is_prayer = any(kw in message for kw in PRAYER_KEYWORDS)
         is_herald = any(kw in message for kw in HERALD_KEYWORDS)
-        if is_prayer or is_herald:
-            global last_prayer_time
-            now = time.time()
-            if now - last_prayer_time >= PRAYER_COOLDOWN:
-                last_prayer_time = now
-                if is_herald and not is_prayer:
-                    # Herald-only — skip Kind God, just run Herald
-                    logger.info("Herald invoked — triggering Herald-only tick")
-                    asyncio.create_task(_herald_only_tick())
-                else:
-                    praying_player = event_data.get("player", event_data.get("sender"))
-                    logger.info(f"Prayer detected from {praying_player} — triggering immediate god tick")
-                    asyncio.create_task(_god_tick(praying_player=praying_player))
+
+        if is_herald and not is_prayer:
+            # Herald-only — skip Kind God, just run Herald
+            logger.info("Herald invoked — triggering Herald-only tick")
+            asyncio.create_task(_herald_only_tick())
+        elif is_prayer:
+            # Snapshot context and queue the prayer
+            player_name = event_data.get("player", event_data.get("sender", "?"))
+            player_snapshot = event_buffer.get_player_snapshot(player_name) or {}
+            recent_chat = event_buffer.get_recent_chat(limit=10)
+            prayer = Prayer(
+                player=player_name,
+                message=event_data.get("message", ""),
+                timestamp=time.time(),
+                player_snapshot=player_snapshot,
+                recent_chat=recent_chat,
+            )
+            prayer_queue.enqueue(prayer)
 
     return {"status": "ok"}
 
@@ -212,6 +232,7 @@ async def get_status():
     """Debug endpoint showing current state."""
     return {
         "event_buffer_size": len(event_buffer._events),
+        "prayer_queue_size": prayer_queue.size,
         "command_queue_size": len(command_queue),
         "kind_god_action_count": kind_god.action_count,
         "kind_god_history_length": len(kind_god.conversation_history),
@@ -253,6 +274,114 @@ async def _herald_only_tick():
                 logger.info(f"Queued {len(herald_commands)} Herald commands")
 
 
+async def _prayer_loop():
+    """Background loop that processes prayers from the queue one at a time.
+
+    Acquires _tick_lock to prevent concurrent god think() calls with the
+    timer tick — kind_god/deep_god conversation history is not safe for
+    concurrent access.
+    """
+    logger.info("Prayer processing loop started")
+    while True:
+        try:
+            prayer = await prayer_queue.dequeue()
+            logger.info(
+                f"[prayer] Dequeued prayer from {prayer.player}: "
+                f"\"{prayer.message[:60]}\" "
+                f"(attempt {prayer.attempts + 1}/{MAX_PRAYER_ATTEMPTS}, "
+                f"queue remaining: {prayer_queue.size})"
+            )
+
+            # Acquire the tick lock — prayer and timer ticks must not overlap
+            async with _tick_lock:
+                await _process_prayer(prayer)
+
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("[prayer] Prayer processing failed")
+
+
+async def _process_prayer(prayer: Prayer):
+    """Process a single prayer under _tick_lock."""
+    global command_queue
+
+    event_summary = prayer.build_context()
+    player_status = event_buffer.get_player_status()
+    tick_ts = time.strftime("%H:%M:%S")
+
+    logger.info(f"[prayer] Processing {prayer.player}'s prayer (lock acquired)")
+    logger.info(f"[prayer] LLM context for {prayer.player}:\n{event_summary}")
+
+    # Route through Deep God trigger logic using snapshot
+    acting_god = "kind"
+    intercept_target = prayer.player
+
+    if deep_god.should_act(event_summary, player_status, kind_god.action_count,
+                           praying_player=prayer.player):
+        acting_god = "deep"
+        logger.info("[prayer] === THE DEEP GOD STIRS ===")
+
+        intercept_msg = _pick_intercept_message(
+            player_status, prayer.player, kind_god.action_count)
+        command_queue.append(_make_tellraw(intercept_msg, target=intercept_target))
+        logger.info(f"[prayer] Interception message to {intercept_target}: {intercept_msg}")
+
+        commands = await deep_god.think(event_summary)
+
+        if commands is None:
+            _recent_logs.append({"time": tick_ts, "god": "deep", "action": "prayer_error",
+                                 "error": deep_god.last_error, "prayer": prayer.player})
+            prayer_queue.requeue(prayer)
+            if prayer.attempts >= MAX_PRAYER_ATTEMPTS:
+                command_queue.extend(_prayer_abandoned_commands(prayer.player))
+            logger.warning(f"[prayer] Deep God failed for {prayer.player} "
+                           f"(attempt {prayer.attempts}/{MAX_PRAYER_ATTEMPTS})")
+            return
+
+        kind_god.notify_deep_god_acted()
+        kind_god.reset_action_count()
+    else:
+        commands = await kind_god.think(event_summary)
+
+        if commands is None:
+            _recent_logs.append({"time": tick_ts, "god": "kind", "action": "prayer_error",
+                                 "error": kind_god.last_error, "prayer": prayer.player})
+            prayer_queue.requeue(prayer)
+            if prayer.attempts >= MAX_PRAYER_ATTEMPTS:
+                command_queue.extend(_prayer_abandoned_commands(prayer.player))
+            logger.warning(f"[prayer] Kind God failed for {prayer.player} "
+                           f"(attempt {prayer.attempts}/{MAX_PRAYER_ATTEMPTS})")
+            return
+
+    if commands:
+        command_queue.extend(commands)
+        cmd_summaries = []
+        for c in commands:
+            if c.get("type") == "build_schematic":
+                cmd_summaries.append(f"build_schematic({c.get('blueprint_id')} @ {c.get('x')},{c.get('y')},{c.get('z')})")
+            else:
+                cmd_summaries.append(c.get("command", "?")[:80])
+        logger.info(f"[prayer] Answered {prayer.player}: {len(commands)} commands queued")
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "prayer_answered",
+                             "commands": cmd_summaries, "prayer": prayer.player,
+                             "context": event_summary})
+    else:
+        logger.info(f"[prayer] {acting_god} god was silent for {prayer.player}'s prayer")
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "prayer_silent",
+                             "prayer": prayer.player, "context": event_summary})
+
+    # Herald can also respond to prayers independently
+    if herald_god.should_act(event_summary):
+        logger.info("[prayer] === THE HERALD SPEAKS ===")
+        herald_commands = await herald_god.think(event_summary)
+        if herald_commands is None:
+            command_queue.extend(_god_failure_commands("herald"))
+        elif herald_commands:
+            command_queue.extend(herald_commands)
+            logger.info(f"[prayer] Queued {len(herald_commands)} Herald commands")
+
+
 async def _god_tick_loop():
     """Background loop that runs the god tick at regular intervals."""
     logger.info(f"God tick loop started (interval: {GOD_TICK_INTERVAL}s)")
@@ -266,101 +395,89 @@ async def _god_tick_loop():
             logger.exception("God tick failed")
 
 
-async def _god_tick(praying_player: str | None = None):
-    """Run one cycle of divine deliberation."""
-    global command_queue
-
-    # Prevent concurrent ticks (prayer fast-path vs regular timer)
+async def _god_tick():
+    """Run one cycle of spontaneous divine deliberation (not prayers)."""
     if _tick_lock.locked():
-        logger.debug("Tick already in progress, skipping")
+        logger.debug("[tick] Tick skipped — lock held (prayer or previous tick in progress)")
         return
 
     async with _tick_lock:
-        await _god_tick_inner(praying_player=praying_player)
+        await _god_tick_inner()
 
 
-async def _god_tick_inner(praying_player: str | None = None):
-    """Actual tick logic, called under lock."""
+async def _god_tick_inner():
+    """Actual tick logic for spontaneous god actions (not prayers).
+
+    Prayers are filtered out of the event summary — they're handled
+    separately by the prayer queue.
+    """
     global command_queue
 
-    event_summary = event_buffer.drain_and_summarize(death_memorial=death_memorial)
+    event_summary = event_buffer.drain_and_summarize(
+        death_memorial=death_memorial, filter_prayers=True)
     if not event_summary:
         return
 
     player_status = event_buffer.get_player_status()
 
-    # Check if the Deep God should act
-    # When a prayer triggered this tick, only consider the praying player's position
     tick_ts = time.strftime("%H:%M:%S")
     acting_god = "kind"
-    intercept_target = praying_player or "@a"
 
-    if deep_god.should_act(event_summary, player_status, kind_god.action_count,
-                           praying_player=praying_player):
+    logger.info(f"[tick] LLM context:\n{event_summary}")
+
+    if deep_god.should_act(event_summary, player_status, kind_god.action_count):
         acting_god = "deep"
-        logger.info("=== THE DEEP GOD STIRS ===")
-
-        # Send interception flavor text before the Deep God acts
-        if praying_player:
-            intercept_msg = _pick_intercept_message(
-                player_status, praying_player, kind_god.action_count)
-            command_queue.append(_make_tellraw(intercept_msg, target=intercept_target))
-            logger.info(f"Interception message to {intercept_target}: {intercept_msg}")
+        logger.info("[tick] === THE DEEP GOD STIRS ===")
 
         commands = await deep_god.think(event_summary)
 
         if commands is None:
-            # LLM call failed — notify players
-            command_queue.extend(_god_failure_commands("deep", target=intercept_target))
-            _recent_logs.append({"time": tick_ts, "god": "deep", "action": "error",
-                                 "error": deep_god.last_error, "prayer": praying_player})
+            command_queue.extend(_god_failure_commands("deep"))
+            _recent_logs.append({"time": tick_ts, "god": "deep", "action": "tick_error",
+                                 "error": deep_god.last_error})
             commands = []
 
-        # Notify the Kind God that the Other acted
         kind_god.notify_deep_god_acted()
-
-        # Reset the Kind God's action counter
         kind_god.reset_action_count()
     else:
         commands = await kind_god.think(event_summary)
 
         if commands is None:
-            # LLM call failed — notify players
-            command_queue.extend(_god_failure_commands("kind", target=intercept_target))
-            _recent_logs.append({"time": tick_ts, "god": "kind", "action": "error",
-                                 "error": kind_god.last_error, "prayer": praying_player})
+            command_queue.extend(_god_failure_commands("kind"))
+            _recent_logs.append({"time": tick_ts, "god": "kind", "action": "tick_error",
+                                 "error": kind_god.last_error})
             commands = []
 
     if commands:
         command_queue.extend(commands)
-        logger.info(f"Queued {len(commands)} commands")
         cmd_summaries = []
         for c in commands:
             if c.get("type") == "build_schematic":
                 cmd_summaries.append(f"build_schematic({c.get('blueprint_id')} @ {c.get('x')},{c.get('y')},{c.get('z')})")
             else:
                 cmd_summaries.append(c.get("command", "?")[:80])
-        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "acted",
-                             "commands": cmd_summaries, "prayer": praying_player})
+        logger.info(f"[tick] {acting_god} god acted: {len(commands)} commands queued")
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "tick_acted",
+                             "commands": cmd_summaries, "context": event_summary})
     else:
-        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "silent",
-                             "prayer": praying_player})
+        logger.info(f"[tick] {acting_god} god was silent")
+        _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "tick_silent",
+                             "context": event_summary})
 
     # The Herald speaks independently — not silenced by either god
     if herald_god.should_act(event_summary):
-        logger.info("=== THE HERALD SPEAKS ===")
+        logger.info("[tick] === THE HERALD SPEAKS ===")
         herald_commands = await herald_god.think(event_summary)
 
         if herald_commands is None:
-            # LLM call failed — notify players
             command_queue.extend(_god_failure_commands("herald"))
-            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "error",
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "tick_error",
                                  "error": herald_god.last_error})
         elif herald_commands:
             command_queue.extend(herald_commands)
-            logger.info(f"Queued {len(herald_commands)} Herald commands")
+            logger.info(f"[tick] Queued {len(herald_commands)} Herald commands")
             herald_summaries = [c.get("command", "?")[:80] for c in herald_commands]
-            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "spoke",
+            _recent_logs.append({"time": tick_ts, "god": "herald", "action": "tick_spoke",
                                  "commands": herald_summaries})
 
     # Memory consolidation check (only on full ticks, not herald-only)
