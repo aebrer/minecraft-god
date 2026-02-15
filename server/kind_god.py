@@ -402,6 +402,18 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "undo_last_build",
+            "description": "Undo the most recent divine construction, restoring the terrain to its original state. Use when a build went wrong, was placed in the wrong location, or a player asks you to remove a recent construction. This undoes both the schematic placement and the terrain clearing. Up to 5 recent builds can be undone.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "do_nothing",
             "description": "Explicitly choose not to act this cycle. Use when events are mundane.",
             "parameters": {

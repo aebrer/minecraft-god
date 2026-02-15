@@ -141,6 +141,8 @@ def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | N
         return _fill_blocks(args)
     elif name == "build_schematic":
         return _build_schematic(args)
+    elif name == "undo_last_build":
+        return {"type": "undo_last_build"}
     else:
         logger.warning(f"Unknown tool call: {name}")
         return None

@@ -52,6 +52,13 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     /** Directory containing .schem files for divine construction. */
     private File schematicsDir;
 
+    /** Stack of recent builds for undo. Each entry records the original block states. */
+    private static final int MAX_UNDO_HISTORY = 5;
+    private final Deque<BuildSnapshot> buildHistory = new ArrayDeque<>();
+
+    /** Snapshot of blocks before a schematic was placed, for undo. */
+    private record BuildSnapshot(String blueprintId, World world, List<BlockPlacement> originalBlocks, long timestamp) {}
+
     /** Blocks worth reporting in the nearby scan — ores, containers, hazards, structures. */
     private static final Set<org.bukkit.Material> NOTABLE_BLOCKS = EnumSet.of(
             // Ores
@@ -130,12 +137,29 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 600, 600);
 
+        // Register /godundo command
+        if (getCommand("godundo") != null) {
+            getCommand("godundo").setExecutor(this::onGodUndoCommand);
+        }
+
         getLogger().info("The gods are watching.");
     }
 
     @Override
     public void onDisable() {
         getLogger().info("The gods have departed.");
+    }
+
+    private boolean onGodUndoCommand(org.bukkit.command.CommandSender sender,
+                                      org.bukkit.command.Command command,
+                                      String label, String[] args) {
+        if (!sender.isOp()) {
+            sender.sendMessage("§cOnly operators can undo divine constructions.");
+            return true;
+        }
+        String result = undoLastBuild();
+        sender.sendMessage(result);
+        return true;
     }
 
     // ─── Utility ────────────────────────────────────────────────────────────────
@@ -472,11 +496,20 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     }
 
     private void executeCommand(JsonObject cmd) {
-        // Check for special schematic build command
-        if (cmd.has("type") && "build_schematic".equals(cmd.get("type").getAsString())) {
-            getLogger().info("Executing build_schematic: " + cmd);
-            executeSchematicBuild(cmd);
-            return;
+        // Check for special command types
+        if (cmd.has("type")) {
+            String type = cmd.get("type").getAsString();
+            if ("build_schematic".equals(type)) {
+                getLogger().info("Executing build_schematic: " + cmd);
+                executeSchematicBuild(cmd);
+                return;
+            }
+            if ("undo_last_build".equals(type)) {
+                getLogger().info("Executing undo_last_build");
+                String result = undoLastBuild();
+                getLogger().info("Undo result: " + result);
+                return;
+            }
         }
 
         String command = cmd.get("command").getAsString();
@@ -595,6 +628,40 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 // Start progressive placement on the main thread
                 Bukkit.getScheduler().runTask(this, () -> {
                     World world = Bukkit.getWorlds().get(0); // overworld
+
+                    // Snapshot original blocks in the bounding box for undo
+                    List<BlockPlacement> originalBlocks = new ArrayList<>();
+                    for (int y = clearMinY; y <= clearMaxY; y++) {
+                        for (int x = clearMinX; x <= clearMaxX; x++) {
+                            for (int z = clearMinZ; z <= clearMaxZ; z++) {
+                                Block block = world.getBlockAt(x, y, z);
+                                originalBlocks.add(new BlockPlacement(
+                                        x, y, z, block.getBlockData().getAsString()));
+                            }
+                        }
+                    }
+                    // Also snapshot positions from the placement list that fall outside
+                    // the bounding box (shouldn't happen, but be safe)
+                    for (BlockPlacement bp : placements) {
+                        if (bp.x < clearMinX || bp.x > clearMaxX ||
+                            bp.y < clearMinY || bp.y > clearMaxY ||
+                            bp.z < clearMinZ || bp.z > clearMaxZ) {
+                            Block block = world.getBlockAt(bp.x, bp.y, bp.z);
+                            originalBlocks.add(new BlockPlacement(
+                                    bp.x, bp.y, bp.z, block.getBlockData().getAsString()));
+                        }
+                    }
+
+                    // Push to undo history
+                    synchronized (buildHistory) {
+                        if (buildHistory.size() >= MAX_UNDO_HISTORY) {
+                            buildHistory.removeLast();
+                        }
+                        buildHistory.push(new BuildSnapshot(
+                                blueprintId, world, originalBlocks, System.currentTimeMillis()));
+                    }
+                    getLogger().info("Schematic " + blueprintId + ": saved undo snapshot ("
+                            + originalBlocks.size() + " blocks)");
 
                     // Clear terrain in the bounding box, skipping protected blocks
                     int cleared = 0;
@@ -717,6 +784,42 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                                 + originX + " " + originY + " " + originZ + " 2 1");
             }
         }
+    }
+
+    // ─── Build Undo ─────────────────────────────────────────────────────────────
+
+    /**
+     * Undo the most recent schematic build by restoring original block states.
+     * Returns a human-readable result message.
+     */
+    private String undoLastBuild() {
+        BuildSnapshot snapshot;
+        synchronized (buildHistory) {
+            snapshot = buildHistory.poll();
+        }
+        if (snapshot == null) {
+            return "§eNo builds to undo.";
+        }
+
+        int restored = 0;
+        for (BlockPlacement bp : snapshot.originalBlocks()) {
+            try {
+                Block block = snapshot.world().getBlockAt(bp.x, bp.y, bp.z);
+                BlockData data = Bukkit.createBlockData(bp.blockState);
+                block.setBlockData(data, false);
+                restored++;
+            } catch (Exception e) {
+                // Skip blocks with invalid states (e.g. mod blocks no longer loaded)
+            }
+        }
+
+        getLogger().info("Undo: restored " + restored + " blocks (was: " + snapshot.blueprintId() + ")");
+
+        // Visual feedback
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                "playsound minecraft:entity.evoker.prepare_wololo master @a");
+
+        return "§aUndid §f" + snapshot.blueprintId() + "§a (" + restored + " blocks restored)";
     }
 
     // ─── Protected Blocks ──────────────────────────────────────────────────────────

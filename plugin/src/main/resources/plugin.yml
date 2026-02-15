@@ -4,3 +4,9 @@ main: ca.entropist.minecraftgod.MinecraftGodPlugin
 api-version: "1.21"
 description: Dual LLM deities watching over your Minecraft server
 author: aebrer
+
+commands:
+  godundo:
+    description: Undo the most recent divine construction
+    usage: /godundo
+    permission: op
