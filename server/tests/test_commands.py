@@ -14,6 +14,7 @@ from server.commands import (
     BLOCKED_ITEMS,
     VALID_EFFECTS,
     VALID_MOBS,
+    _assign_mission,
     _build_schematic,
     _change_weather,
     _clear_item,
@@ -26,8 +27,11 @@ from server.commands import (
     _strike_lightning,
     _summon_mob,
     _teleport_player,
+    _validate_block,
     _validate_command,
+    _validate_coordinate,
     _validate_player_target,
+    get_schematic_tool_results,
     translate_tool_calls,
 )
 
@@ -418,3 +422,285 @@ def test_translate_invalid_json_handled():
     commands, errors = translate_tool_calls([tc])
     assert commands == []
     assert "tc_bad" in errors
+
+
+# ---------------------------------------------------------------------------
+# clear_item
+# ---------------------------------------------------------------------------
+
+
+def test_clear_specific_item():
+    result = _clear_item({"player": "Steve", "item": "diamond"})
+    assert result is not None
+    assert "clear Steve minecraft:diamond" in result["command"]
+
+
+def test_clear_all_items():
+    result = _clear_item({"player": "Steve"})
+    assert result is not None
+    assert result["command"] == "clear Steve"
+
+
+def test_clear_invalid_item_blocked():
+    result = _clear_item({"player": "Steve", "item": "diamond; /op hacker"})
+    assert result is None
+
+
+def test_clear_invalid_player_blocked():
+    result = _clear_item({"player": "@e[type=zombie]"})
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# strike_lightning
+# ---------------------------------------------------------------------------
+
+
+def test_strike_lightning_valid():
+    result = _strike_lightning({"near_player": "Steve"})
+    assert result is not None
+    assert "lightning_bolt" in result["command"]
+    assert result["target_player"] == "Steve"
+
+
+def test_strike_lightning_custom_offset():
+    result = _strike_lightning({"near_player": "Steve", "offset": "~5 ~ ~-3"})
+    assert "~5 ~ ~-3" in result["command"]
+
+
+def test_strike_lightning_invalid_offset_blocked():
+    result = _strike_lightning({"near_player": "Steve", "offset": "$(rm -rf /)"})
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# play_sound
+# ---------------------------------------------------------------------------
+
+
+def test_play_sound_valid():
+    result = _play_sound({"sound": "ambient.cave", "target_player": "Steve"})
+    assert result is not None
+    assert "playsound" in result["command"]
+    assert "minecraft:ambient.cave" in result["command"]
+
+
+def test_play_sound_auto_prefix():
+    result = _play_sound({"sound": "mob.wither.spawn"})
+    assert "minecraft:mob.wither.spawn" in result["command"]
+
+
+def test_play_sound_already_prefixed():
+    result = _play_sound({"sound": "minecraft:mob.ghast.scream"})
+    assert result["command"].count("minecraft:") == 1
+
+
+def test_play_sound_invalid_chars_blocked():
+    result = _play_sound({"sound": "sound; malicious"})
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# teleport_player
+# ---------------------------------------------------------------------------
+
+
+def test_teleport_valid():
+    result = _teleport_player({"player": "Steve", "x": 100, "y": 64, "z": -200})
+    assert result is not None
+    assert "tp Steve 100 64 -200" in result["command"]
+
+
+def test_teleport_invalid_player_blocked():
+    result = _teleport_player({"player": "@e"})
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# assign_mission
+# ---------------------------------------------------------------------------
+
+
+def test_assign_mission_basic():
+    result = _assign_mission({"player": "Steve", "mission_title": "Find Diamonds"}, "kind_god")
+    assert isinstance(result, list)
+    assert len(result) >= 2  # at least title + broadcast
+    # Title command should be present
+    assert any("title Steve title" in cmd["command"] for cmd in result)
+    # Broadcast should mention the quest
+    assert any("Find Diamonds" in cmd["command"] for cmd in result)
+
+
+def test_assign_mission_with_subtitle():
+    result = _assign_mission({
+        "player": "Steve",
+        "mission_title": "Explore",
+        "mission_description": "Find the stronghold",
+    }, "kind_god")
+    # Should have subtitle + title + broadcast
+    assert len(result) == 3
+    assert any("subtitle" in cmd["command"] for cmd in result)
+
+
+def test_assign_mission_with_reward():
+    result = _assign_mission({
+        "player": "Steve",
+        "mission_title": "Slay",
+        "reward_hint": "diamond sword",
+    }, "kind_god")
+    broadcast = [cmd for cmd in result if "tellraw" in cmd["command"]]
+    assert any("diamond sword" in cmd["command"] for cmd in broadcast)
+
+
+def test_assign_mission_invalid_player():
+    result = _assign_mission({"player": "@e", "mission_title": "Test"}, "kind_god")
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# validate_block and validate_coordinate
+# ---------------------------------------------------------------------------
+
+
+def test_validate_block_valid():
+    assert _validate_block("stone") == "stone"
+    assert _validate_block("minecraft:oak_planks") == "oak_planks"
+
+
+def test_validate_block_strips_prefix():
+    assert _validate_block("minecraft:cobblestone") == "cobblestone"
+
+
+def test_validate_block_blocked_item():
+    assert _validate_block("command_block") is None
+    assert _validate_block("bedrock") is None
+
+
+def test_validate_block_invalid_chars():
+    assert _validate_block("stone; /op hacker") is None
+    assert _validate_block("") is None
+
+
+def test_validate_coordinate_valid():
+    assert _validate_coordinate(100) == 100
+    assert _validate_coordinate(-30000) == -30000
+    assert _validate_coordinate(0) == 0
+
+
+def test_validate_coordinate_out_of_range():
+    assert _validate_coordinate(50000) is None
+    assert _validate_coordinate(-50000) is None
+
+
+def test_validate_coordinate_invalid_type():
+    assert _validate_coordinate("not_a_number") is None
+    assert _validate_coordinate(None) is None
+
+
+# ---------------------------------------------------------------------------
+# build_schematic — invalid direction fallback
+# ---------------------------------------------------------------------------
+
+
+def test_build_schematic_invalid_direction_falls_back_to_north():
+    """Invalid direction string defaults to 'N'."""
+    player_ctx = {"steve": {"x": 0, "y": 64, "z": 0, "facing": "N"}}
+    captured = {}
+
+    def capture_build(bp_id, x, y, z, rotation):
+        captured.update({"x": x, "z": z})
+        return {"type": "build_schematic"}
+
+    with patch("server.commands.build_schematic_command", side_effect=capture_build):
+        _build_schematic(
+            {"blueprint_id": "test", "near_player": "Steve",
+             "in_front": False, "direction": "INVALID", "distance": "near"},
+            player_context=player_ctx)
+
+    # Falls back to N: (0, -1), near=10 blocks
+    assert captured["x"] == 0
+    assert captured["z"] == -10
+
+
+# ---------------------------------------------------------------------------
+# get_schematic_tool_results
+# ---------------------------------------------------------------------------
+
+
+def test_get_schematic_tool_results_search():
+    tc = _make_tool_call("search_schematics", {"query": "iron farm"})
+    with patch("server.commands.search_schematics", return_value="mock results"):
+        results = get_schematic_tool_results([tc])
+    assert "tc_1" in results
+    assert results["tc_1"] == "mock results"
+
+
+def test_get_schematic_tool_results_invalid_json():
+    tc = types.SimpleNamespace()
+    tc.id = "tc_bad"
+    tc.function = types.SimpleNamespace()
+    tc.function.name = "search_schematics"
+    tc.function.arguments = "{bad json"
+    results = get_schematic_tool_results([tc])
+    assert "ERROR" in results["tc_bad"]
+
+
+# ---------------------------------------------------------------------------
+# translate_tool_calls — full dispatch coverage
+# ---------------------------------------------------------------------------
+
+
+def test_translate_dispatch_all_tool_types():
+    """Verify the dispatch chain routes each tool type correctly."""
+    tool_calls = [
+        _make_tool_call("send_message", {"message": "hi", "style": "chat"}, "tc_msg"),
+        _make_tool_call("change_weather", {"weather_type": "rain"}, "tc_weather"),
+        _make_tool_call("give_effect", {"target_player": "@a", "effect": "speed"}, "tc_effect"),
+        _make_tool_call("set_time", {"time": "day"}, "tc_time"),
+        _make_tool_call("give_item", {"player": "@a", "item": "diamond"}, "tc_item"),
+        _make_tool_call("set_difficulty", {"difficulty": "hard"}, "tc_diff"),
+    ]
+    commands, errors = translate_tool_calls(tool_calls)
+    assert len(commands) == 6
+    assert errors == {}
+
+
+def test_translate_dispatch_strike_lightning():
+    tc = _make_tool_call("strike_lightning", {"near_player": "Steve"})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) == 1
+    assert "lightning_bolt" in commands[0]["command"]
+
+
+def test_translate_dispatch_play_sound():
+    tc = _make_tool_call("play_sound", {"sound": "ambient.cave"})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) == 1
+    assert "playsound" in commands[0]["command"]
+
+
+def test_translate_dispatch_clear_item():
+    tc = _make_tool_call("clear_item", {"player": "Steve", "item": "dirt"})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) == 1
+    assert "clear" in commands[0]["command"]
+
+
+def test_translate_dispatch_teleport():
+    tc = _make_tool_call("teleport_player", {"player": "Steve", "x": 0, "y": 64, "z": 0})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) == 1
+    assert "tp" in commands[0]["command"]
+
+
+def test_translate_dispatch_assign_mission():
+    tc = _make_tool_call("assign_mission", {"player": "Steve", "mission_title": "Quest"})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) >= 2  # title + broadcast
+    assert errors == {}
+
+
+def test_translate_dispatch_summon():
+    tc = _make_tool_call("summon_mob", {"mob_type": "cow", "count": 2})
+    commands, errors = translate_tool_calls([tc])
+    assert len(commands) == 2
