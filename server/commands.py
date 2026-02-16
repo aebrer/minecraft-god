@@ -6,6 +6,7 @@ All commands go through an allowlist. If something isn't in the list, it gets dr
 import json
 import logging
 import re
+
 from server.schematics import search_schematics, build_schematic_command
 
 logger = logging.getLogger("minecraft-god")
@@ -137,10 +138,7 @@ def _describe_failure(name: str, args: dict) -> str | None:
         if not found:
             return (f"ERROR: Blueprint '{bp_id}' not found. The ID may be misspelled. "
                     f"Copy the exact ID from the search results and try again.")
-        near_player = args.get("near_player", "")
-        if not near_player:
-            return "ERROR: build_schematic requires 'near_player' — specify which player to build near."
-        return None  # build_schematic args look valid, failure was elsewhere
+        return None  # blueprint exists; failure was likely missing position data
     elif name == "summon_mob":
         mob = args.get("mob_type", "").lower().replace("minecraft:", "")
         if mob not in VALID_MOBS:

@@ -176,6 +176,20 @@ _SILENCE_DEEP = [
     "Silence from below. Your words were noted. Nothing more.",
 ]
 
+_SILENCE_HERALD = [
+    "The Herald opens their mouth... and closes it. No verse today.",
+    "The Herald listens, but finds no words worth singing.",
+    "A half-formed verse drifts away on the wind.",
+    "The Herald considers your tale, and deems it not yet ready for song.",
+    "Silence from the Herald. Not every moment deserves a verse.",
+]
+
+_SILENCE_POOLS = {
+    "kind": _SILENCE_KIND,
+    "deep": _SILENCE_DEEP,
+    "herald": _SILENCE_HERALD,
+}
+
 
 def _pick_intercept_message(player_status: dict | None, praying_player: str | None,
                             kind_god_action_count: int) -> str:
@@ -618,12 +632,14 @@ async def _process_divine_request(request: DivineRequest):
                              "player": request.player, "context": event_summary})
         # Send in-game feedback so the player knows their prayer was heard but unanswered
         if rt in ("prayer", "herald"):
-            silence_pool = _SILENCE_DEEP if acting_god == "deep" else _SILENCE_KIND
+            silence_pool = _SILENCE_POOLS.get(acting_god, _SILENCE_KIND)
             silence_msg = random.choice(silence_pool)
             command_queue.append(
                 _make_tellraw(silence_msg, target=request.player,
                               color="gray", italic=True)
             )
+            god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald"}[acting_god]
+            _log_activity(f"{god_label} was silent for {request.player}'s {rt}")
 
     # Herald can also respond to prayers independently (but not to herald invocations —
     # that would double-trigger)
