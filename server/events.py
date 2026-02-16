@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
+from server.prayer_queue import is_divine_request
 
 logger = logging.getLogger("minecraft-god")
 
@@ -33,8 +33,7 @@ class EventBuffer:
         with self._lock:
             for event in self._events:
                 if event.get("type") == "chat":
-                    message = event.get("message", "").lower()
-                    if any(kw in message for kw in PRAYER_KEYWORDS | HERALD_KEYWORDS):
+                    if is_divine_request(event.get("message", "")):
                         return True
         return False
 
@@ -67,15 +66,12 @@ class EventBuffer:
             player_status = self._latest_player_status
 
         if filter_divine:
-            _all_keywords = PRAYER_KEYWORDS | HERALD_KEYWORDS
             filtered = []
             stripped_count = 0
             for e in events:
-                if e.get("type") == "chat":
-                    message = e.get("message", "").lower()
-                    if any(kw in message for kw in _all_keywords):
-                        stripped_count += 1
-                        continue
+                if e.get("type") == "chat" and is_divine_request(e.get("message", "")):
+                    stripped_count += 1
+                    continue
                 filtered.append(e)
             if stripped_count:
                 logger.info(f"[tick] Filtered {stripped_count} divine request chat(s) from tick context")

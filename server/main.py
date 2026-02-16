@@ -15,13 +15,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_KEYWORDS, HERALD_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
+from server.config import GOD_TICK_INTERVAL, MEMORY_CONSOLIDATION_INTERVAL_TICKS
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
 from server.herald_god import HeraldGod
 from server.deaths import DeathMemorial
-from server.prayer_queue import DivineRequest, DivineRequestQueue, MAX_ATTEMPTS
+from server.prayer_queue import DivineRequest, DivineRequestQueue, MAX_ATTEMPTS, classify_divine_request
 
 logging.basicConfig(
     level=logging.INFO,
@@ -225,13 +225,9 @@ async def receive_event(event: GameEvent):
 
     # Check chat for prayer or herald keywords — both go through the queue
     if event_data.get("type") == "chat":
-        message = event_data.get("message", "").lower()
-        is_prayer = any(kw in message for kw in PRAYER_KEYWORDS)
-        is_herald = any(kw in message for kw in HERALD_KEYWORDS)
+        request_type = classify_divine_request(event_data.get("message", ""))
 
-        if is_prayer or is_herald:
-            # Determine request type: prayer takes priority if both match
-            request_type = "prayer" if is_prayer else "herald"
+        if request_type:
             player_name = event_data.get("player", event_data.get("sender", "?"))
             # Use the inline snapshot from the chat event (built on the plugin's
             # main thread at the moment the player spoke — always fresh)

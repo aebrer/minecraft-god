@@ -20,10 +20,25 @@ MAX_ATTEMPTS = 5
 _ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS
 
 
-def _is_divine_request(message: str) -> bool:
+def is_divine_request(message: str) -> bool:
     """Check if a chat message contains any divine request keywords."""
     lower = message.lower()
     return any(kw in lower for kw in _ALL_DIVINE_KEYWORDS)
+
+
+def classify_divine_request(message: str) -> str | None:
+    """Classify a chat message as "prayer", "herald", or None.
+
+    Prayer takes priority if both prayer and herald keywords match.
+    """
+    lower = message.lower()
+    is_prayer = any(kw in lower for kw in PRAYER_KEYWORDS)
+    is_herald = any(kw in lower for kw in HERALD_KEYWORDS)
+    if is_prayer:
+        return "prayer"
+    if is_herald:
+        return "herald"
+    return None
 
 
 @dataclass
@@ -102,7 +117,7 @@ class DivineRequest:
             msg = c.get("message", "")
             sender = c.get("player", "?")
             is_this_request = (sender == self.player and msg == self.message)
-            is_other_request = (not is_this_request and _is_divine_request(msg))
+            is_other_request = (not is_this_request and is_divine_request(msg))
             if not is_other_request:
                 chat_lines.append(f'  [PLAYER CHAT] {sender}: "{msg}"')
         # Make sure the request itself is included even if it wasn't in recent_chat

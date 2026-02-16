@@ -1,9 +1,8 @@
-"""Tests for the divine request queue.
+"""Tests for the divine request queue and keyword detection.
 
-All tests go through the public interface: DivineRequest.build_context()
-and DivineRequestQueue.enqueue/dequeue/requeue. Keyword detection is tested
-through its observable effect: build_context() filters other players'
-divine requests from the chat context.
+Tests cover the public interface: classify_divine_request(),
+is_divine_request(), DivineRequest.build_context(), and
+DivineRequestQueue.enqueue/dequeue/requeue.
 """
 
 import asyncio
@@ -13,7 +12,52 @@ from server.prayer_queue import (
     DivineRequest,
     DivineRequestQueue,
     MAX_ATTEMPTS,
+    classify_divine_request,
+    is_divine_request,
 )
+
+
+# ---------------------------------------------------------------------------
+# classify_divine_request — single source of truth for keyword detection
+# ---------------------------------------------------------------------------
+
+
+def test_classify_prayer_keyword():
+    assert classify_divine_request("God help me") == "prayer"
+
+
+def test_classify_herald_keyword():
+    assert classify_divine_request("herald tell me a story") == "herald"
+
+
+def test_classify_no_keyword():
+    assert classify_divine_request("nice base!") is None
+
+
+def test_classify_prayer_takes_priority_over_herald():
+    """When both prayer and herald keywords are present, prayer wins."""
+    assert classify_divine_request("God please herald guide me") == "prayer"
+
+
+def test_classify_case_insensitive():
+    assert classify_divine_request("GOD HELP ME") == "prayer"
+    assert classify_divine_request("HERALD tell me") == "herald"
+
+
+def test_is_divine_request_true_for_prayer():
+    assert is_divine_request("God help me") is True
+
+
+def test_is_divine_request_true_for_herald():
+    assert is_divine_request("herald guide me") is True
+
+
+def test_is_divine_request_false_for_regular_chat():
+    assert is_divine_request("nice base!") is False
+
+
+def test_classify_empty_string():
+    assert classify_divine_request("") is None
 
 
 # ---------------------------------------------------------------------------
