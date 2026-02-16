@@ -142,6 +142,11 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             getCommand("godundo").setExecutor(this::onGodUndoCommand);
         }
 
+        // Register /godhelp command
+        if (getCommand("godhelp") != null) {
+            getCommand("godhelp").setExecutor(this::onGodHelpCommand);
+        }
+
         getLogger().info("The gods are watching.");
     }
 
@@ -160,6 +165,63 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
         String result = undoLastBuild();
         sender.sendMessage(result);
         return true;
+    }
+
+    private boolean onGodHelpCommand(org.bukkit.command.CommandSender sender,
+                                      org.bukkit.command.Command command,
+                                      String label, String[] args) {
+        if (sender instanceof Player player) {
+            sendHelpMessage(player);
+        } else {
+            sender.sendMessage("This command can only be used by players.");
+        }
+        return true;
+    }
+
+    /**
+     * Send the server introduction / help text to a player.
+     * Uses tellraw for formatted clickable text.
+     */
+    private void sendHelpMessage(Player player) {
+        String name = player.getName();
+        String[] lines = {
+            // Header
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"═══ \",\"color\":\"dark_gray\"},{\"text\":\"The Gods of This Server\",\"color\":\"gold\",\"bold\":true},{\"text\":\" ═══\",\"color\":\"dark_gray\"}]",
+            "tellraw " + name + " \"\"",
+
+            // Kind God
+            "tellraw " + name + " [{\"text\":\"☀ The Kind God\",\"color\":\"yellow\",\"bold\":true},{\"text\":\" — a benevolent deity bound by mysterious Rules.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Pray by saying words like \",\"color\":\"gray\"},{\"text\":\"god\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"please\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"help\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"pray\",\"color\":\"aqua\"},{\"text\":\", or \",\"color\":\"gray\"},{\"text\":\"mercy\",\"color\":\"aqua\"},{\"text\":\" in chat.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Can gift items, build structures, assign quests, change weather/time, and more.\",\"color\":\"gray\"}]",
+
+            // Deep God
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"◆ The Deep God\",\"color\":\"dark_purple\",\"bold\":true},{\"text\":\" — an ancient presence beneath the stone.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Does not answer prayers. It answers intrusions. Dig deep enough and it may notice.\",\"color\":\"gray\"}]",
+
+            // Herald
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"♫ The Herald\",\"color\":\"green\",\"bold\":true},{\"text\":\" — a poetic guide who speaks in verse.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Summon by saying \",\"color\":\"gray\"},{\"text\":\"herald\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"bard\",\"color\":\"aqua\"},{\"text\":\", or \",\"color\":\"gray\"},{\"text\":\"guide\",\"color\":\"aqua\"},{\"text\":\" in chat. Gives practical Minecraft advice.\",\"color\":\"gray\"}]",
+
+            // Tips
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"Tips:\",\"color\":\"white\",\"bold\":true}]",
+            "tellraw " + name + " [{\"text\":\"  • Ask the gods to build things — they have 2000+ blueprints.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  • Say \",\"color\":\"gray\"},{\"text\":\"undo\",\"color\":\"aqua\"},{\"text\":\" to ask a god to reverse its last build.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  • Say \",\"color\":\"gray\"},{\"text\":\"remember\",\"color\":\"aqua\"},{\"text\":\" to prompt the Kind God to reflect on recent events.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  • The gods observe everything — chat, mining, combat, deaths.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  • Type \",\"color\":\"gray\"},{\"text\":\"/godhelp\",\"color\":\"aqua\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/godhelp\"}},{\"text\":\" to see this message again.\",\"color\":\"gray\"}]",
+
+            // Footer
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"═══════════════════════════════\",\"color\":\"dark_gray\"}]",
+        };
+
+        for (String line : lines) {
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), line);
+        }
     }
 
     // ─── Utility ────────────────────────────────────────────────────────────────
@@ -240,6 +302,16 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             spawnData.add("location", locationToJson(player.getLocation()));
             spawnData.addProperty("dimension", dimensionId(player.getWorld()));
             sendEvent("player_initial_spawn", spawnData);
+
+            // Show help/intro after a short delay so the player has loaded in
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (player.isOnline()) {
+                        sendHelpMessage(player);
+                    }
+                }
+            }.runTaskLater(MinecraftGodPlugin.this, 60); // 3 second delay
         }
     }
 
