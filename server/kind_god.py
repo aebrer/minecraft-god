@@ -324,7 +324,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "blueprint_id": {"type": "string", "description": "The blueprint ID to build"},
-                    "near_player": {"type": "string", "description": "Player name to build near"},
+                    "near_player": {"type": "string", "description": "Player name to build near (defaults to the praying player)"},
                     "in_front": {
                         "type": "boolean",
                         "description": "Place in front of the player (default: true). Overrides direction.",
@@ -345,7 +345,7 @@ TOOLS = [
                         "description": "Rotation in degrees clockwise. Default: 0",
                     },
                 },
-                "required": ["blueprint_id", "near_player"],
+                "required": ["blueprint_id"],
             },
         },
     },
@@ -388,7 +388,8 @@ class KindGod:
         self.last_error: str | None = None
         self._deep_god_acted: bool = False
 
-    async def think(self, event_summary: str, player_context: dict | None = None) -> list[dict]:
+    async def think(self, event_summary: str, player_context: dict | None = None,
+                    requesting_player: str | None = None) -> list[dict]:
         """Process events and return Minecraft commands.
 
         Each call starts with a fresh LLM context — no persistent conversation
@@ -396,6 +397,8 @@ class KindGod:
 
         player_context: dict mapping lowercase player names to position/facing data,
             passed through to translate_tool_calls for build_schematic placement.
+        requesting_player: the player who triggered this action (e.g. the praying player).
+            Used as the default near_player for build_schematic.
         """
         memory_block = self.memory.format_for_prompt()
         system_content = SYSTEM_PROMPT + memory_block
@@ -485,8 +488,10 @@ class KindGod:
             # Translate action tool calls to commands
             action_errors = {}
             if action_calls:
-                new_commands, action_errors = translate_tool_calls(action_calls, source="kind_god",
-                                                                   player_context=player_context)
+                new_commands, action_errors = translate_tool_calls(
+                    action_calls, source="kind_god",
+                    player_context=player_context,
+                    requesting_player=requesting_player)
                 commands.extend(new_commands)
 
             # Add tool result messages for ALL tool calls

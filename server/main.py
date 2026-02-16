@@ -567,7 +567,8 @@ async def _process_divine_request(request: DivineRequest):
             kind_god.notify_deep_god_acted()
             kind_god.reset_action_count()
         else:
-            commands = await kind_god.think(event_summary, player_context=player_context)
+            commands = await kind_god.think(event_summary, player_context=player_context,
+                                           requesting_player=request.player)
 
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "kind", "action": "prayer_error",
