@@ -462,11 +462,14 @@ async def _god_tick_inner():
 
     player_status = event_buffer.get_player_status()
     if not player_status or not player_status.get("players"):
-        # No one online — drain events silently so they don't pile up
+        # No one online — drain events so they don't pile up
         discarded = event_buffer.drain_and_summarize(
             death_memorial=death_memorial, filter_divine=True)
         if discarded:
-            logger.debug("[tick] Skipped — no players online (discarded buffered events)")
+            tick_ts = time.strftime("%H:%M:%S")
+            logger.info("[tick] Skipped — no players online (discarded buffered events)")
+            _recent_logs.append({"time": tick_ts, "action": "tick_idle_skip",
+                                 "reason": "no_players_online"})
         return
 
     event_summary = event_buffer.drain_and_summarize(
