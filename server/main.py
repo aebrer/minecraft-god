@@ -159,6 +159,24 @@ _INTERCEPT_THRESHOLD = [
 ]
 
 
+# Silence feedback — when a god hears a prayer but chooses not to act
+_SILENCE_KIND = [
+    "The Kind God hears your prayer, but offers only silence.",
+    "A warm light flickers... and fades. Your prayer goes unanswered.",
+    "The Kind God watches, but does not speak.",
+    "Your words are heard. No answer comes.",
+    "The Kind God considers... and is still.",
+]
+
+_SILENCE_DEEP = [
+    "The deep considers your words. It is unimpressed.",
+    "The stone does not care about your request.",
+    "Your prayer falls into the dark. Nothing stirs.",
+    "The deep hears. The deep does not respond.",
+    "Silence from below. Your words were noted. Nothing more.",
+]
+
+
 def _pick_intercept_message(player_status: dict | None, praying_player: str | None,
                             kind_god_action_count: int) -> str:
     """Pick a context-appropriate interception message."""
@@ -598,6 +616,14 @@ async def _process_divine_request(request: DivineRequest):
         logger.info(f"[{rt}] {acting_god} god was silent for {request.player}'s {rt}")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": f"{rt}_silent",
                              "player": request.player, "context": event_summary})
+        # Send in-game feedback so the player knows their prayer was heard but unanswered
+        if rt in ("prayer", "herald"):
+            silence_pool = _SILENCE_DEEP if acting_god == "deep" else _SILENCE_KIND
+            silence_msg = random.choice(silence_pool)
+            command_queue.append(
+                _make_tellraw(silence_msg, target=request.player,
+                              color="gray", italic=True)
+            )
 
     # Herald can also respond to prayers independently (but not to herald invocations —
     # that would double-trigger)

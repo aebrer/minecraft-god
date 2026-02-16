@@ -535,10 +535,10 @@ def test_build_unknown_player_produces_no_commands():
 
 def test_build_defaults_near_player_to_requesting_player():
     """When LLM omits near_player, it defaults to the requesting (praying) player."""
-    player_ctx = {"embrer1890": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
+    player_ctx = {"testplayer": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
     cmds, _ = _translate_build(
         {"blueprint_id": "test", "in_front": True, "distance": "near"},
-        player_ctx, requesting_player="embrer1890")
+        player_ctx, requesting_player="testplayer")
     assert len(cmds) == 1
     assert cmds[0]["x"] == 100
     assert cmds[0]["z"] == 190  # N = -Z, near = 10
@@ -546,13 +546,13 @@ def test_build_defaults_near_player_to_requesting_player():
 
 def test_build_llm_misspelled_player_falls_back_to_requesting():
     """When LLM misspells near_player, falls back to requesting player."""
-    player_ctx = {"embrer1890": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
+    player_ctx = {"testplayer": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
     cmds, _ = _translate_build(
-        {"blueprint_id": "test", "near_player": "ember1890", "in_front": True, "distance": "near"},
-        player_ctx, requesting_player="embrer1890")
+        {"blueprint_id": "test", "near_player": "tstplayer", "in_front": True, "distance": "near"},
+        player_ctx, requesting_player="testplayer")
     assert len(cmds) == 1
     assert cmds[0]["x"] == 100
-    assert cmds[0]["z"] == 190  # Falls back to embrer1890's position
+    assert cmds[0]["z"] == 190  # Falls back to testplayer's position
 
 
 # ---------------------------------------------------------------------------
