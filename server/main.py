@@ -8,6 +8,7 @@ import asyncio
 import collections
 import json
 import logging
+import os
 import random
 import time
 
@@ -54,8 +55,6 @@ _consolidation_log: list[str] = []
 _CONSOLIDATION_LOG_MAX = 500
 # Cooldown after failed consolidation to avoid hammering a failing LLM every tick
 _consolidation_cooldown_until: float = 0
-# Force flag — set by "remember" keyword to trigger immediate consolidation
-_force_consolidation: bool = False
 
 
 def _load_consolidation_log():
@@ -67,15 +66,22 @@ def _load_consolidation_log():
         if isinstance(data, list):
             _consolidation_log.extend(data[:_CONSOLIDATION_LOG_MAX])
             logger.info(f"Loaded {len(_consolidation_log)} activity log entries from disk")
-    except (json.JSONDecodeError, OSError):
-        logger.warning("Activity log file corrupt — starting with empty log")
+        else:
+            logger.warning(
+                f"Activity log file contains {type(data).__name__} instead of list "
+                "— starting with empty log"
+            )
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        logger.exception("Activity log file corrupt — starting with empty log")
 
 
 def _save_consolidation_log():
-    """Save the activity log to disk."""
+    """Save the activity log to disk (atomic write via tmp + replace)."""
     CONSOLIDATION_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
-        CONSOLIDATION_LOG_FILE.write_text(json.dumps(_consolidation_log))
+        tmp_path = CONSOLIDATION_LOG_FILE.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(_consolidation_log))
+        os.replace(tmp_path, CONSOLIDATION_LOG_FILE)
     except OSError:
         logger.exception("Failed to save activity log to disk")
 
@@ -210,22 +216,6 @@ def _prayer_abandoned_commands(player: str) -> list[dict]:
     ]
 
 
-def _trigger_remember(player: str):
-    """Handle a 'remember' keyword — force immediate consolidation on next tick."""
-    global _force_consolidation
-    _force_consolidation = True
-    command_queue.append(
-        _make_tellraw(
-            "The Kind God closes its eyes and reflects on all that has passed...",
-            target=player, color="gold", italic=True,
-        )
-    )
-    command_queue.append(
-        {"command": f"playsound minecraft:block.amethyst_block.chime master {player}"}
-    )
-    logger.info(f"[remember] {player} triggered memory consolidation")
-
-
 def _build_player_context(player_status: dict | None, prayer_snapshot: dict | None = None) -> dict:
     """Build a player_context dict mapping lowercase player names to position/facing data.
 
@@ -328,14 +318,16 @@ async def receive_event(event: GameEvent):
         message = event_data.get("message", "")
         request_type = classify_divine_request(message)
 
-        if request_type == "remember":
-            # "remember" triggers immediate memory consolidation
-            _log_activity(f'REMEMBER: {player_name}: "{message}"')
-            _trigger_remember(player_name)
-        elif request_type:
-            # Prayer or herald — queue for divine response
-            label = "PRAYER" if request_type == "prayer" else "HERALD REQUEST"
-            _log_activity(f'{label}: {player_name}: "{message}"')
+        if request_type:
+            # Divine request — queue for processing (prayer, herald, or remember)
+            if request_type == "remember":
+                snapshot = event_data.get("playerSnapshot") or {}
+                loc = snapshot.get("location", {})
+                pos = f" at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')})" if loc else ""
+                _log_activity(f'REMEMBER: {player_name}{pos}: "{message}"')
+            else:
+                label = "PRAYER" if request_type == "prayer" else "HERALD REQUEST"
+                _log_activity(f'{label}: {player_name}: "{message}"')
 
             # Use the inline snapshot from the chat event (built on the plugin's
             # main thread at the moment the player spoke — always fresh)
@@ -404,7 +396,7 @@ async def get_logs():
 
 
 async def _prayer_loop():
-    """Background loop that processes divine requests (prayers + herald) from the queue.
+    """Background loop that processes divine requests (prayers, herald, remember) from the queue.
 
     Acquires _tick_lock to prevent concurrent god think() calls with the
     timer tick — shared state (command_queue, action counts) is not safe for
@@ -432,24 +424,102 @@ async def _prayer_loop():
                 f"Divine request processing failed for {request.player}'s "
                 f"{request.request_type}: \"{request.message[:60]}\""
             )
-            # Requeue so the player isn't silently ignored
-            try:
-                if not prayer_queue.requeue(request):
+            if request.request_type == "remember":
+                # Remember failures are handled internally; don't retry
+                command_queue.append(
+                    _make_tellraw(
+                        "The Kind God's reflection falters. Something went wrong.",
+                        target=request.player, color="red", italic=True,
+                    )
+                )
+            else:
+                # Requeue so the player isn't silently ignored
+                try:
+                    if not prayer_queue.requeue(request):
+                        command_queue.extend(_prayer_abandoned_commands(request.player))
+                except Exception:
+                    logger.exception("Failed to requeue after processing error")
                     command_queue.extend(_prayer_abandoned_commands(request.player))
-            except Exception:
-                logger.exception("Failed to requeue after processing error")
-                command_queue.extend(_prayer_abandoned_commands(request.player))
 
 
 async def _process_divine_request(request: DivineRequest):
-    """Process a single divine request (prayer or herald invocation) under _tick_lock."""
-    global command_queue
+    """Process a single divine request (prayer, herald, or remember) under _tick_lock."""
+    global command_queue, _consolidation_cooldown_until
+
+    tick_ts = time.strftime("%H:%M:%S")
+    rt = request.request_type
+
+    if rt == "remember":
+        # Memory consolidation — check preconditions, then attempt consolidation
+        if not _consolidation_log:
+            logger.info(f"[remember] {request.player} requested consolidation but activity log is empty")
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God has nothing new to reflect upon.",
+                    target=request.player, color="gray", italic=True,
+                )
+            )
+            _recent_logs.append({"time": tick_ts, "action": "remember_empty",
+                                 "player": request.player})
+            return
+
+        now = time.time()
+        if now < _consolidation_cooldown_until:
+            logger.info(f"[remember] {request.player} requested consolidation but still in cooldown")
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God is still recovering from a troubled reflection. Try again later.",
+                    target=request.player, color="gray", italic=True,
+                )
+            )
+            _recent_logs.append({"time": tick_ts, "action": "remember_cooldown",
+                                 "player": request.player})
+            return
+
+        # Preconditions met — send feedback and run consolidation
+        command_queue.append(
+            _make_tellraw(
+                "The Kind God closes its eyes and reflects on all that has passed...",
+                target=request.player, color="gold", italic=True,
+            )
+        )
+        command_queue.append(
+            {"command": f"playsound minecraft:block.amethyst_block.chime master {request.player}"}
+        )
+
+        snapshot_len = len(_consolidation_log)
+        logger.info(
+            f"=== KIND GOD MEMORY CONSOLIDATION "
+            f"(triggered by {request.player}, {snapshot_len} entries) ==="
+        )
+        activity_snapshot = _consolidation_log.copy()
+        try:
+            await kind_god.memory.consolidate(activity_snapshot)
+            del _consolidation_log[:snapshot_len]
+            _save_consolidation_log()
+            _recent_logs.append({"time": tick_ts, "action": "remember_consolidation",
+                                 "entries_processed": len(activity_snapshot),
+                                 "memories": len(kind_god.memory.memories),
+                                 "player": request.player})
+            _log_activity(f"Kind God consolidated memories (requested by {request.player})")
+        except Exception as exc:
+            logger.exception(f"Memory consolidation failed (requested by {request.player})")
+            _consolidation_cooldown_until = now + MEMORY_CONSOLIDATION_INTERVAL_SECONDS
+            _save_consolidation_log()
+            _recent_logs.append({"time": tick_ts, "action": "remember_error",
+                                 "error": f"{type(exc).__name__}: {exc}",
+                                 "player": request.player})
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God's reflection shatters. The memories slip away... try again later.",
+                    target=request.player, color="red", italic=True,
+                )
+            )
+        return
 
     event_summary = request.build_context()
     player_status = event_buffer.get_player_status()
     player_context = _build_player_context(player_status, request.player_snapshot)
-    tick_ts = time.strftime("%H:%M:%S")
-    rt = request.request_type  # "prayer" or "herald"
 
     logger.info(f"[{rt}] Processing {request.player}'s {rt} (lock acquired)")
     logger.info(f"[{rt}] LLM context for {request.player}:\n{event_summary}")
@@ -544,26 +614,21 @@ async def _process_divine_request(request: DivineRequest):
 async def _maybe_consolidate():
     """Run memory consolidation if activity has accumulated and enough wall-clock time has passed.
 
-    Fires immediately if _force_consolidation is set (triggered by "remember" keyword).
     Runs even when no players are online — the Kind God reflects on
     accumulated activity regardless of current server state.
+    Player-triggered consolidation ("remember" keyword) is handled separately
+    in _process_divine_request.
     """
-    global _consolidation_cooldown_until, _force_consolidation
+    global _consolidation_cooldown_until
 
     if not _consolidation_log:
-        _force_consolidation = False
         return  # nothing to reflect on
 
     now = time.time()
-
-    if _force_consolidation:
-        _force_consolidation = False
-        logger.info("[remember] Forced consolidation triggered by player")
-    else:
-        if now < _consolidation_cooldown_until:
-            return  # still in cooldown after a failure
-        if kind_god.memory.seconds_since_consolidation() < MEMORY_CONSOLIDATION_INTERVAL_SECONDS:
-            return  # not time yet
+    if now < _consolidation_cooldown_until:
+        return  # still in cooldown after a failure
+    if kind_god.memory.seconds_since_consolidation() < MEMORY_CONSOLIDATION_INTERVAL_SECONDS:
+        return  # not time yet
 
     snapshot_len = len(_consolidation_log)
     logger.info(f"=== KIND GOD MEMORY CONSOLIDATION ({snapshot_len} entries) ===")

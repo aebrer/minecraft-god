@@ -2,7 +2,7 @@
 
 Covers _log_activity timestamping, _summarize_commands extraction
 for different command types (tellraw, build_schematic, plain commands),
-log persistence, and the "remember" trigger.
+and log persistence (save/load roundtrip, error handling).
 """
 
 import json
@@ -184,24 +184,22 @@ def test_load_corrupt_file_is_noop(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _trigger_remember — force flag and in-game feedback
+# _load_consolidation_log — non-list JSON handling
 # ---------------------------------------------------------------------------
 
 
-def test_trigger_remember_sets_force_flag():
-    """Remember keyword sets the force consolidation flag."""
-    original_flag = main_module._force_consolidation
-    original_queue = main_module.command_queue.copy()
+def test_load_non_list_json_is_noop(tmp_path):
+    """Valid JSON that is not a list is treated as empty (with a warning)."""
+    original = main_module._consolidation_log.copy()
+    original_path = main_module.CONSOLIDATION_LOG_FILE
     try:
-        main_module._force_consolidation = False
-        main_module.command_queue.clear()
-        main_module._trigger_remember("Steve")
-        assert main_module._force_consolidation is True
-        # Should produce tellraw + playsound commands
-        assert len(main_module.command_queue) == 2
-        assert "tellraw" in main_module.command_queue[0].get("command", "")
-        assert "playsound" in main_module.command_queue[1].get("command", "")
+        test_file = tmp_path / "consolidation_log.json"
+        test_file.write_text('{"entries": ["a", "b"]}')
+        main_module.CONSOLIDATION_LOG_FILE = test_file
+        main_module._consolidation_log.clear()
+        main_module._load_consolidation_log()
+        assert len(main_module._consolidation_log) == 0
     finally:
-        main_module._force_consolidation = original_flag
-        main_module.command_queue.clear()
-        main_module.command_queue.extend(original_queue)
+        main_module.CONSOLIDATION_LOG_FILE = original_path
+        main_module._consolidation_log.clear()
+        main_module._consolidation_log.extend(original)

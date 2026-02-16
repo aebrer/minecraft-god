@@ -1,8 +1,8 @@
 """Tests for the divine request queue and keyword detection.
 
-Tests cover the public interface: classify_divine_request(),
-is_divine_request(), DivineRequest.build_context(), and
-DivineRequestQueue.enqueue/dequeue/requeue.
+Tests cover the public interface: classify_divine_request()
+(with remember > prayer > herald priority), is_divine_request(),
+DivineRequest.build_context(), and DivineRequestQueue.enqueue/dequeue/requeue.
 """
 
 import asyncio
@@ -43,9 +43,9 @@ def test_classify_remember_keyword():
     assert classify_divine_request("remember this place") == "remember"
 
 
-def test_classify_prayer_takes_priority_over_remember():
-    """Prayer keywords beat remember when both present."""
-    assert classify_divine_request("God please remember me") == "prayer"
+def test_classify_remember_takes_priority_over_prayer():
+    """Remember keywords beat prayer when both present."""
+    assert classify_divine_request("God please remember me") == "remember"
 
 
 def test_classify_remember_takes_priority_over_herald():

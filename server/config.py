@@ -41,5 +41,5 @@ PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "
 # Herald keywords — trigger the Herald, NOT the Kind God
 HERALD_KEYWORDS = {"herald", "bard", "guide"}
 
-# Remember keywords — trigger immediate memory consolidation
+# Remember keywords — trigger player-initiated memory consolidation
 REMEMBER_KEYWORDS = {"remember"}

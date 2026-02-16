@@ -152,7 +152,8 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
   - Non-silent god actions (Kind God, Deep God, Herald) with command summaries
   - Player deaths, joins, and leaves
 - On consolidation, the full activity log is sent to the LLM which reviews and updates the god's memories
-- Memories and the consolidation timer persist across restarts (stored as unix timestamp in the JSON file). The activity log does not persist — events since the last consolidation are lost on restart
+- Memories and the consolidation timer persist across restarts (stored as unix timestamp in the JSON file). The activity log also persists — saved to `data/consolidation_log.json` on shutdown and after each consolidation cycle, reloaded on startup
+- Players can say "remember" in chat to force immediate consolidation (bypasses the 3-hour timer, respects failure cooldown). "remember" takes priority over prayer keywords — queued through the same DivineRequestQueue with full player context snapshot
 - The `/status` endpoint shows `consolidation_log_entries`, `last_consolidation_ago`, and `next_consolidation_in`
 
 ## Server Restart Procedure

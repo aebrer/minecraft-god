@@ -54,8 +54,9 @@ class EventBuffer:
         """Drain the buffer and return a human-readable summary for the LLM.
 
         Returns None if nothing happened worth reporting.
-        If filter_divine is True, chat messages containing prayer or herald keywords
-        are excluded (they'll be handled by the divine request queue instead).
+        If filter_divine is True, chat messages containing divine request keywords
+        (prayer, herald, or remember) are excluded — they're handled by the
+        divine request queue instead.
         """
         with self._lock:
             events = self._events.copy()

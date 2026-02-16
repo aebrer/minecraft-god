@@ -1,8 +1,8 @@
 """Divine request detection and queuing.
 
 Provides keyword classification (is_divine_request, classify_divine_request)
-as the single source of truth for prayer/herald detection, and a FIFO queue
-for processing player-initiated god invocations. Each request captures the
+as the single source of truth for prayer/herald/remember detection, and a FIFO
+queue for processing player-initiated god invocations. Each request captures the
 game state at the moment it was spoken, so the god can respond with accurate
 context even if the player has moved on by the time the request is processed.
 """
@@ -18,7 +18,9 @@ logger = logging.getLogger("minecraft-god")
 
 MAX_ATTEMPTS = 5
 
-# All keywords that trigger divine requests (prayers + herald invocations + remember)
+# All keywords that trigger divine requests (prayers + herald invocations + remember).
+# "remember" is included because it goes through the DivineRequestQueue just like
+# prayers and heralds — it should be filtered from the spontaneous tick context.
 _ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS | REMEMBER_KEYWORDS
 
 
@@ -29,18 +31,18 @@ def is_divine_request(message: str) -> bool:
 
 
 def classify_divine_request(message: str) -> str | None:
-    """Classify a chat message as "prayer", "herald", "remember", or None.
+    """Classify a chat message as "remember", "prayer", "herald", or None.
 
-    Priority: prayer > remember > herald.
+    Priority: remember > prayer > herald.
     """
     lower = message.lower()
-    is_prayer = any(kw in lower for kw in PRAYER_KEYWORDS)
     is_remember = any(kw in lower for kw in REMEMBER_KEYWORDS)
+    is_prayer = any(kw in lower for kw in PRAYER_KEYWORDS)
     is_herald = any(kw in lower for kw in HERALD_KEYWORDS)
-    if is_prayer:
-        return "prayer"
     if is_remember:
         return "remember"
+    if is_prayer:
+        return "prayer"
     if is_herald:
         return "herald"
     return None
@@ -51,7 +53,7 @@ class DivineRequest:
     """A player-initiated request waiting for divine response."""
     player: str
     message: str
-    request_type: Literal["prayer", "herald"]
+    request_type: Literal["prayer", "herald", "remember"]
     timestamp: float
     player_snapshot: dict          # full player status dict at request time
     recent_chat: list[dict]       # nearby chat messages for context
@@ -136,7 +138,7 @@ class DivineRequest:
 
 
 class DivineRequestQueue:
-    """FIFO queue of divine requests (prayers + herald invocations)."""
+    """FIFO queue of divine requests (prayers + herald invocations + remember)."""
 
     def __init__(self):
         self._queue: asyncio.Queue[DivineRequest] = asyncio.Queue()
