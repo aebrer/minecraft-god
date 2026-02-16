@@ -9,6 +9,8 @@ care about individuals.
 import json
 import logging
 import os
+import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +31,7 @@ Each memory should be 1-3 sentences. Focus on:
 - Long-term patterns: who builds, who mines, who prays, who is reckless
 - Promises you have made or things you told specific players
 - Your own feelings about players (you care about them)
+- What the Deep God and the Herald have done — you are aware of their actions
 
 When updating memories:
 - You may update existing memories with new information
@@ -46,7 +49,7 @@ class KindGodMemory:
     def __init__(self, memory_path: Path):
         self.memory_path = memory_path
         self.memories: list[dict] = []
-        self.last_consolidation: str | None = None
+        self.last_consolidation: float = 0  # unix timestamp
         self.consolidation_count: int = 0
         self._load()
 
@@ -59,14 +62,35 @@ class KindGodMemory:
         try:
             data = json.loads(self.memory_path.read_text())
             self.memories = data.get("memories", [])
-            self.last_consolidation = data.get("last_consolidation")
             self.consolidation_count = data.get("consolidation_count", 0)
+
+            # Handle both old ISO string format and new unix timestamp
+            raw_ts = data.get("last_consolidation")
+            if isinstance(raw_ts, (int, float)):
+                self.last_consolidation = float(raw_ts)
+            elif isinstance(raw_ts, str):
+                # Migrate from old ISO format
+                try:
+                    dt = datetime.fromisoformat(raw_ts)
+                    self.last_consolidation = dt.timestamp()
+                except ValueError:
+                    self.last_consolidation = 0
+            else:
+                self.last_consolidation = 0
+
             logger.info(
                 f"Loaded {len(self.memories)} memories "
-                f"(last consolidation: {self.last_consolidation})"
+                f"(consolidations: {self.consolidation_count})"
             )
-        except (json.JSONDecodeError, KeyError):
-            logger.warning("Memory file corrupt — starting fresh")
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError, ValueError):
+            backup = self.memory_path.with_suffix(
+                f".corrupt.{int(time.time())}.json"
+            )
+            try:
+                shutil.copy2(self.memory_path, backup)
+                logger.error(f"Memory file corrupt — backed up to {backup.name}, starting fresh")
+            except OSError:
+                logger.error("Memory file corrupt — backup failed, starting fresh")
             self.memories = []
 
     def _save(self) -> None:
@@ -82,6 +106,12 @@ class KindGodMemory:
         tmp_path = self.memory_path.with_suffix(".tmp")
         tmp_path.write_text(json.dumps(data, indent=2))
         os.replace(tmp_path, self.memory_path)
+
+    def seconds_since_consolidation(self) -> float:
+        """Wall-clock seconds since last consolidation, or inf if never consolidated."""
+        if self.last_consolidation == 0:
+            return float("inf")
+        return time.time() - self.last_consolidation
 
     def format_for_prompt(self) -> str:
         """Return memories formatted for injection into the system prompt."""
@@ -102,8 +132,15 @@ class KindGodMemory:
             + "\n=== END MEMORIES ==="
         )
 
-    async def consolidate(self, recent_activity: list[dict]) -> None:
-        """Run the consolidation LLM call and update memories."""
+    async def consolidate(self, activity_log: list[str]) -> None:
+        """Run the consolidation LLM call and update memories.
+
+        activity_log: human-readable timeline entries from the global activity log.
+        """
+        if not activity_log:
+            logger.info("Consolidation skipped — no recent activity to review")
+            return
+
         # Format current memories for the prompt
         if self.memories:
             current = "\n".join(
@@ -113,11 +150,7 @@ class KindGodMemory:
         else:
             current = "You have no memories yet."
 
-        # Format recent activity log as readable text
-        recent = _format_history_for_consolidation(recent_activity)
-        if not recent:
-            logger.info("Consolidation skipped — no recent activity to review")
-            return
+        recent = "\n".join(activity_log)
 
         user_message = (
             f"Here are your current memories:\n{current}\n\n"
@@ -141,7 +174,7 @@ class KindGodMemory:
             )
         except Exception:
             logger.exception("Memory consolidation LLM call failed")
-            return
+            raise  # let caller handle retry/logging
 
         raw = response.choices[0].message.content or ""
 
@@ -158,11 +191,11 @@ class KindGodMemory:
                 f"Memory consolidation returned invalid JSON, keeping existing memories. "
                 f"Raw response: {raw[:200]}"
             )
-            return
+            raise ValueError(f"LLM returned invalid JSON for consolidation: {raw[:200]}")
 
         if not isinstance(memory_strings, list):
             logger.warning("Memory consolidation did not return a list")
-            return
+            raise ValueError(f"LLM returned non-list type for consolidation: {type(memory_strings)}")
 
         # Clamp to max entries
         memory_strings = memory_strings[:MEMORY_MAX_ENTRIES]
@@ -188,7 +221,7 @@ class KindGodMemory:
             })
 
         self.memories = new_memories
-        self.last_consolidation = now
+        self.last_consolidation = time.time()
         self.consolidation_count += 1
         self._save()
 
@@ -196,29 +229,3 @@ class KindGodMemory:
             f"Memory consolidation #{self.consolidation_count}: "
             f"{len(self.memories)} memories saved"
         )
-
-
-def _format_history_for_consolidation(history: list[dict]) -> str:
-    """Format conversation history as readable text for the consolidation prompt."""
-    lines = []
-    for msg in history:
-        role = msg.get("role", "")
-        content = msg.get("content", "")
-
-        if role == "user" and content:
-            lines.append(f"[Events]\n{content}")
-        elif role == "assistant" and content:
-            lines.append(f"[Your thoughts]\n{content}")
-
-            # Include tool calls if present
-            tool_calls = msg.get("tool_calls")
-            if tool_calls:
-                for tc in tool_calls:
-                    if isinstance(tc, dict):
-                        fn = tc.get("function", {})
-                        name = fn.get("name", "?")
-                        args = fn.get("arguments", "{}")
-                        lines.append(f"[Your action] {name}({args})")
-        # Skip tool result messages — they're just "ok"
-
-    return "\n\n".join(lines) if lines else ""

@@ -30,9 +30,9 @@ server/
   kind_god.py     - Kind God: prompt, tools, fresh context per call, multi-turn tool use
   deep_god.py     - Deep God: prompt, restricted tools, trigger logic
   herald_god.py   - Herald: poetic messenger in iambic pentameter
-  memory.py       - Kind God persistent memory (consolidation across sessions)
+  memory.py       - Kind God persistent memory (wall-clock consolidation timer, LLM consolidation call)
   deaths.py       - DeathMemorial: persistent death records
-  main.py         - FastAPI app, endpoints, dual-deity tick loop
+  main.py         - FastAPI app, endpoints, dual-deity tick loop, activity log
 
 plugin/
   pom.xml                                    - Maven build file
@@ -142,6 +142,18 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - Triggers: below Y=0 (70%), Nether (50%), deep ore mining while underground (40%), underground at night (15%), random while underground (5%)
 - Forced trigger when Kind God action_count >= threshold (6)
 - On regular (non-prayer) ticks, all player positions are checked
+
+## Kind God Memory & Consolidation
+- The Kind God has persistent memory stored in `data/kind_god_memory.json`
+- Memories are consolidated on a **wall-clock timer** (default 3 hours, configurable via `MEMORY_CONSOLIDATION_INTERVAL` env var in seconds)
+- Consolidation runs even when no players are online — the god reflects on accumulated activity
+- A global **activity log** (`_consolidation_log` in main.py) captures timestamped entries:
+  - Player chats (regular and prayers, with prayers labeled)
+  - Non-silent god actions (Kind God, Deep God, Herald) with command summaries
+  - Player deaths, joins, and leaves
+- On consolidation, the full activity log is sent to the LLM which reviews and updates the god's memories
+- Memories and the consolidation timer persist across restarts (stored as unix timestamp in the JSON file). The activity log does not persist — events since the last consolidation are lost on restart
+- The `/status` endpoint shows `consolidation_log_entries`, `last_consolidation_ago`, and `next_consolidation_in`
 
 ## Server Restart Procedure
 1. Run `scripts/schematics/announce_restart.py` for RCON countdown (30s/15s/5s/3/2/1)

@@ -388,7 +388,6 @@ class KindGod:
         self.memory = KindGodMemory(MEMORY_FILE)
         self.last_error: str | None = None
         self._deep_god_acted: bool = False
-        self._recent_activity: list[dict] = []  # lightweight log for memory consolidation
 
     async def think(self, event_summary: str, player_context: dict | None = None) -> list[dict]:
         """Process events and return Minecraft commands.
@@ -561,14 +560,6 @@ class KindGod:
                 continue
             else:
                 break
-
-        # Record activity for memory consolidation (lightweight — just events + god responses)
-        self._recent_activity.append({"role": "user", "content": user_content})
-        for msg in conversation:
-            if msg.get("role") == "assistant":
-                self._recent_activity.append(msg)
-        if len(self._recent_activity) > 40:
-            self._recent_activity = self._recent_activity[-40:]
 
         return commands
 

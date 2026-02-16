@@ -32,7 +32,7 @@ BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 MEMORY_DIR = _project_root / "data"
 MEMORY_FILE = MEMORY_DIR / "kind_god_memory.json"
 MEMORY_MAX_ENTRIES = int(os.getenv("MEMORY_MAX_ENTRIES", "15"))
-MEMORY_CONSOLIDATION_INTERVAL_TICKS = int(os.getenv("MEMORY_CONSOLIDATION_INTERVAL_TICKS", "960"))
+MEMORY_CONSOLIDATION_INTERVAL_SECONDS = int(os.getenv("MEMORY_CONSOLIDATION_INTERVAL", str(3 * 3600)))  # default 3 hours
 
 # Prayer keywords that trigger immediate Kind God response
 PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "lord"}
