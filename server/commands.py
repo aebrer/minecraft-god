@@ -6,6 +6,7 @@ All commands go through an allowlist. If something isn't in the list, it gets dr
 import json
 import logging
 import re
+from difflib import SequenceMatcher
 
 from server.schematics import search_schematics, build_schematic_command
 
@@ -358,6 +359,11 @@ def _strike_lightning(args: dict) -> dict | None:
     return _cmd(f"summon minecraft:lightning_bolt {offset}", target_player=near_player)
 
 
+def _name_similarity(a: str, b: str) -> float:
+    """Return similarity ratio (0-1) between two player names."""
+    return SequenceMatcher(None, a, b).ratio()
+
+
 _SOUND_RE = re.compile(r"^[a-z0-9_.:/-]+$")
 
 
@@ -439,10 +445,23 @@ def _build_schematic(args: dict, player_context: dict | None = None) -> dict | N
         logger.warning("build_schematic missing near_player")
         return None
 
-    # Look up player position
+    # Look up player position — fuzzy match if exact name not found (LLM typos)
     player_data = None
+    resolved_name = near_player
     if player_context:
         player_data = player_context.get(near_player.lower())
+        if not player_data and player_context:
+            # Try fuzzy match: find the closest player name
+            best_match, best_ratio = None, 0.0
+            for ctx_name in player_context:
+                ratio = _name_similarity(near_player.lower(), ctx_name)
+                if ratio > best_ratio:
+                    best_match, best_ratio = ctx_name, ratio
+            if best_match and best_ratio >= 0.6:
+                logger.info(f"build_schematic: fuzzy matched '{near_player}' -> '{best_match}' "
+                            f"(similarity: {best_ratio:.0%})")
+                player_data = player_context[best_match]
+                resolved_name = best_match
 
     if not player_data:
         logger.warning(f"build_schematic: no position data for player '{near_player}'")

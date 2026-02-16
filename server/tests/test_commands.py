@@ -531,6 +531,17 @@ def test_build_unknown_player_produces_no_commands():
     assert cmds == []
 
 
+def test_build_fuzzy_matches_misspelled_player():
+    """LLM typo in player name should fuzzy match to the correct player."""
+    player_ctx = {"embrer1890": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
+    cmds, _ = _translate_build(
+        {"blueprint_id": "test", "near_player": "ember1890", "in_front": True, "distance": "near"},
+        player_ctx)
+    assert len(cmds) == 1
+    assert cmds[0]["x"] == 100
+    assert cmds[0]["z"] == 190  # N = -Z, near = 10
+
+
 # ---------------------------------------------------------------------------
 # get_schematic_tool_results
 # ---------------------------------------------------------------------------
