@@ -150,6 +150,21 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - Backend restarts are safe without announcement (just a few seconds of god silence)
 - Paper restarts kick all players — always announce first
 
+## Testing
+```bash
+venv/bin/python3 -m pytest server/tests/ -v
+```
+
+Tests live in `server/tests/`. A pre-commit hook runs them automatically — commits are blocked if tests fail.
+
+**Testing principles:**
+- Test through public interfaces (`add()`, `get_player_status()`), not internal state
+- Tests describe **what** the system does, not **how** — they should survive refactors
+- One test, one behavior: each test verifies a single observable outcome
+- No mocking internal collaborators — mock only external boundaries (time, network, LLM)
+- Tests should read like specifications: a new contributor should understand the system by reading them
+- Prioritize critical paths and complex logic (staleness, trigger logic, command translation) over trivial getters
+
 ## World Backups
 - Automated via systemd timer: `minecraft-god-backup.timer` fires at **02:00** and **14:00** daily
 - Script: `scripts/backup_world.sh` — stops Paper, tars `paper/world/`, restarts Paper, prunes old backups
