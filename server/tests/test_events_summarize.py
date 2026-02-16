@@ -264,6 +264,16 @@ def test_filter_divine_removes_prayer_chat():
     assert "please help" not in summary
 
 
+def test_filter_divine_removes_herald_chat():
+    """Herald keywords are also filtered when filter_divine is True."""
+    buf = EventBuffer()
+    buf.add({"type": "chat", "player": "Steve", "message": "herald tell me a story"})
+    buf.add({"type": "chat", "player": "Alex", "message": "cool base!"})
+    summary = buf.drain_and_summarize(filter_divine=True)
+    assert "cool base" in summary
+    assert "herald" not in summary
+
+
 def test_filter_divine_keeps_non_prayer_chat():
     buf = EventBuffer()
     buf.add({"type": "chat", "player": "Steve", "message": "hello everyone"})

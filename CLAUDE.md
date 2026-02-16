@@ -9,7 +9,7 @@ Paper MC server (Java Edition) + two LLM deities watching over players. See ARCH
 ## Tech Stack
 - **Plugin**: Java Paper plugin (`plugin/`) — event listeners, HTTP bridge to backend
 - **Backend**: Python 3.11+, FastAPI, uvicorn
-- **LLM**: GLM-4.7 via z.ai (OpenAI-compatible, use `openai` SDK with custom base_url)
+- **LLM**: GLM-5 via z.ai (OpenAI-compatible, use `openai` SDK with custom base_url)
 - **Server**: Paper MC 1.21.11 (Java Edition)
 
 ## Key Architecture

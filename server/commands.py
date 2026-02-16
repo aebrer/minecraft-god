@@ -311,6 +311,7 @@ def _summon_mob(args: dict) -> list[dict] | None:
 def _change_weather(args: dict) -> dict | None:
     weather = args.get("weather_type", "clear").lower()
     if weather not in ("clear", "rain", "thunder"):
+        logger.warning(f"Blocked invalid weather type: {weather}")
         return None
     duration = min(max(args.get("duration", 6000), 1), 24000)
     return _cmd(f"weather {weather} {duration}")
@@ -333,6 +334,7 @@ def _set_time(args: dict) -> dict | None:
     time_val = args.get("time", "day").lower()
     valid_times = {"day", "noon", "sunset", "night", "midnight", "sunrise"}
     if time_val not in valid_times:
+        logger.warning(f"Blocked invalid time value: {time_val}")
         return None
     return _cmd(f"time set {time_val}")
 
@@ -394,6 +396,7 @@ def _play_sound(args: dict) -> dict | None:
 def _set_difficulty(args: dict) -> dict | None:
     difficulty = args.get("difficulty", "normal").lower()
     if difficulty not in ("peaceful", "easy", "normal", "hard"):
+        logger.warning(f"Blocked invalid difficulty: {difficulty}")
         return None
     return _cmd(f"difficulty {difficulty}")
 

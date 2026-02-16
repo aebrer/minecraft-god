@@ -19,23 +19,16 @@ class EventBuffer:
         self._lock = Lock()
         self._latest_player_status: dict | None = None
         self._player_status_time: float = 0
+        self._stale_logged: bool = False
 
     def add(self, event: dict):
         with self._lock:
             if event.get("type") == "player_status":
                 self._latest_player_status = event
                 self._player_status_time = time.time()
+                self._stale_logged = False
             else:
                 self._events.append(event)
-
-    def has_divine_request(self) -> bool:
-        """Check if any recent chat event contains prayer or herald keywords."""
-        with self._lock:
-            for event in self._events:
-                if event.get("type") == "chat":
-                    if is_divine_request(event.get("message", "")):
-                        return True
-        return False
 
     def get_recent_chat(self, limit: int = 10) -> list[dict]:
         """Return recent chat events (non-destructive) for prayer context snapshots."""
@@ -50,6 +43,10 @@ class EventBuffer:
             # Status beacon stops when no players are online — if it hasn't
             # been refreshed recently, treat it as stale (no one online)
             if time.time() - self._player_status_time > self._STATUS_STALE_SECONDS:
+                if not self._stale_logged:
+                    age = time.time() - self._player_status_time
+                    logger.info(f"[status] Player status gone stale ({age:.0f}s since last beacon)")
+                    self._stale_logged = True
                 return None
             return self._latest_player_status
 

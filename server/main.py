@@ -326,6 +326,7 @@ async def _prayer_loop():
                     command_queue.extend(_prayer_abandoned_commands(request.player))
             except Exception:
                 logger.exception("Failed to requeue after processing error")
+                command_queue.extend(_prayer_abandoned_commands(request.player))
 
 
 async def _process_divine_request(request: DivineRequest):
@@ -452,7 +453,8 @@ async def _god_tick_inner():
 
     Prayers are filtered out of the event summary — they're handled
     separately by the prayer queue.  Skips entirely when no players
-    are online to avoid wasting LLM calls on weather-only ticks.
+    are online to avoid wasting LLM calls on weather-only ticks;
+    buffered events are drained and discarded to prevent buildup.
     """
     global command_queue
 
@@ -463,9 +465,10 @@ async def _god_tick_inner():
             death_memorial=death_memorial, filter_divine=True)
         if discarded:
             tick_ts = time.strftime("%H:%M:%S")
-            logger.info("[tick] Skipped — no players online (discarded buffered events)")
+            logger.info(f"[tick] Skipped — no players online (discarded {len(discarded)} chars of events)")
             _recent_logs.append({"time": tick_ts, "action": "tick_idle_skip",
-                                 "reason": "no_players_online"})
+                                 "reason": "no_players_online",
+                                 "discarded_chars": len(discarded)})
         return
 
     event_summary = event_buffer.drain_and_summarize(
@@ -539,9 +542,11 @@ async def _god_tick_inner():
     global _ticks_since_consolidation
     _ticks_since_consolidation += 1
     if _ticks_since_consolidation >= MEMORY_CONSOLIDATION_INTERVAL_TICKS:
-        _ticks_since_consolidation = 0
         logger.info("=== KIND GOD MEMORY CONSOLIDATION ===")
         try:
             await kind_god.memory.consolidate(kind_god._recent_activity)
         except Exception:
             logger.exception("Memory consolidation failed")
+            _recent_logs.append({"time": time.strftime("%H:%M:%S"),
+                                 "action": "consolidation_error"})
+        _ticks_since_consolidation = 0

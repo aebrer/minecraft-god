@@ -125,3 +125,39 @@ def test_drain_preserves_player_status():
 
     # Status should still be available (it's not an event, it's cached state)
     assert buf.get_player_status() == status
+
+
+# ---------------------------------------------------------------------------
+# get_recent_chat
+# ---------------------------------------------------------------------------
+
+
+def test_get_recent_chat_returns_only_chat_events():
+    """Non-chat events are excluded from recent chat."""
+    buf = EventBuffer()
+    buf.add({"type": "weather_change", "newWeather": "Rain"})
+    buf.add({"type": "chat", "player": "Steve", "message": "hello"})
+    buf.add({"type": "player_join", "player": "Alex"})
+    chats = buf.get_recent_chat()
+    assert len(chats) == 1
+    assert chats[0]["message"] == "hello"
+
+
+def test_get_recent_chat_respects_limit():
+    """Only the last N chat events are returned."""
+    buf = EventBuffer()
+    for i in range(15):
+        buf.add({"type": "chat", "player": "Steve", "message": f"msg {i}"})
+    chats = buf.get_recent_chat(limit=5)
+    assert len(chats) == 5
+    assert chats[0]["message"] == "msg 10"
+    assert chats[-1]["message"] == "msg 14"
+
+
+def test_get_recent_chat_is_non_destructive():
+    """Getting recent chat does not remove events from the buffer."""
+    buf = EventBuffer()
+    buf.add({"type": "chat", "player": "Steve", "message": "hello"})
+    buf.get_recent_chat()
+    summary = buf.drain_and_summarize()
+    assert "hello" in summary

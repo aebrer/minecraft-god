@@ -80,7 +80,7 @@ def test_nether_no_trigger_high_roll(monkeypatch):
 def test_underground_has_base_chance(monkeypatch):
     """Player at Y=20 (underground) has at least the base random chance."""
     god = DeepGod()
-    # Underground triggers DEEP_GOD_NIGHT_UNDERGROUND_CHANCE (15%) as max
+    # Underground effective chance is 15% (night/underground baseline, see deep_god.py)
     monkeypatch.setattr("server.deep_god.random.random", lambda: 0.10)
     result = god.should_act("some events", _player_status(y=20), kind_god_action_count=0)
     assert result is True

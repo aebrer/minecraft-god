@@ -1,8 +1,10 @@
-"""Divine request queue: FIFO queue of player-initiated god/herald invocations.
+"""Divine request detection and queuing.
 
-Each request captures the game state at the moment it was spoken,
-so the god can respond with accurate context even if the player
-has moved on by the time the request is processed.
+Provides keyword classification (is_divine_request, classify_divine_request)
+as the single source of truth for prayer/herald detection, and a FIFO queue
+for processing player-initiated god invocations. Each request captures the
+game state at the moment it was spoken, so the god can respond with accurate
+context even if the player has moved on by the time the request is processed.
 """
 
 import asyncio

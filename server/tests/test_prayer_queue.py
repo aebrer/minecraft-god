@@ -171,8 +171,9 @@ def test_context_filters_other_herald_invocations():
     assert "tell me something" not in ctx
 
 
-def test_context_keeps_regular_chat_with_keyword_substrings():
-    """Messages without divine keywords are kept even if they look similar."""
+def test_context_filters_keyword_substrings_keeps_regular_chat():
+    """Messages containing keyword substrings ('god' in 'godly') are filtered;
+    messages with no keywords are kept."""
     req = _make_request()
     req.recent_chat = [
         {"player": "Steve", "message": "God help me"},
@@ -182,6 +183,7 @@ def test_context_keeps_regular_chat_with_keyword_substrings():
     ctx = req.build_context()
     assert "God help me" in ctx
     assert "I found diamonds" in ctx
+    assert "godly view" not in ctx
 
 
 def test_context_empty_inventory():
