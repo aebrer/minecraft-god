@@ -27,9 +27,7 @@ from server.commands import (
     _strike_lightning,
     _summon_mob,
     _teleport_player,
-    _validate_block,
     _validate_command,
-    _validate_coordinate,
     _validate_player_target,
     get_schematic_tool_results,
     translate_tool_calls,
@@ -555,46 +553,6 @@ def test_assign_mission_with_reward():
 def test_assign_mission_invalid_player():
     result = _assign_mission({"player": "@e", "mission_title": "Test"}, "kind_god")
     assert result == []
-
-
-# ---------------------------------------------------------------------------
-# validate_block and validate_coordinate
-# ---------------------------------------------------------------------------
-
-
-def test_validate_block_valid():
-    assert _validate_block("stone") == "stone"
-    assert _validate_block("minecraft:oak_planks") == "oak_planks"
-
-
-def test_validate_block_strips_prefix():
-    assert _validate_block("minecraft:cobblestone") == "cobblestone"
-
-
-def test_validate_block_blocked_item():
-    assert _validate_block("command_block") is None
-    assert _validate_block("bedrock") is None
-
-
-def test_validate_block_invalid_chars():
-    assert _validate_block("stone; /op hacker") is None
-    assert _validate_block("") is None
-
-
-def test_validate_coordinate_valid():
-    assert _validate_coordinate(100) == 100
-    assert _validate_coordinate(-30000) == -30000
-    assert _validate_coordinate(0) == 0
-
-
-def test_validate_coordinate_out_of_range():
-    assert _validate_coordinate(50000) is None
-    assert _validate_coordinate(-50000) is None
-
-
-def test_validate_coordinate_invalid_type():
-    assert _validate_coordinate("not_a_number") is None
-    assert _validate_coordinate(None) is None
 
 
 # ---------------------------------------------------------------------------

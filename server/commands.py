@@ -451,29 +451,6 @@ def _assign_mission(args: dict, source: str = "kind_god") -> list[dict]:
     return commands
 
 
-def _validate_block(block: str) -> str | None:
-    """Validate and clean a block type. Returns cleaned name or None if blocked."""
-    block = block.lower().replace("minecraft:", "").strip()
-    if not block or not re.match(r"^[a-z0-9_]+$", block):
-        logger.warning(f"Blocked invalid block name: {block}")
-        return None
-    if block in BLOCKED_ITEMS:
-        logger.warning(f"Blocked dangerous block type: {block}")
-        return None
-    return block
-
-
-def _validate_coordinate(val) -> int | None:
-    """Validate a single coordinate value (integer, clamped to reasonable range)."""
-    try:
-        n = int(val)
-        if -30000 <= n <= 30000:
-            return n
-    except (TypeError, ValueError):
-        pass
-    return None
-
-
 # Direction offsets: (dx, dz) per unit distance
 _DIRECTION_OFFSETS = {
     "N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0),
