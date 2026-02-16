@@ -102,7 +102,6 @@ HERALD_COOLDOWN = 60  # seconds between Herald messages
 
 class HeraldGod:
     def __init__(self):
-        self.conversation_history: list[dict] = []
         self._last_spoke: float = 0
         self.last_error: str | None = None
 
@@ -128,20 +127,24 @@ class HeraldGod:
         return False
 
     async def think(self, event_summary: str) -> list[dict]:
-        """Process events and return chat commands (only send_message)."""
-        self.conversation_history.append({
-            "role": "user",
-            "content": (
-                f"=== WORLD TIDINGS ===\n\n{event_summary}\n\n"
-                "Speak if guidance is needed, or hold your tongue. "
-                "Remember: iambic pentameter, always."
-            ),
-        })
+        """Process events and return chat commands (only send_message).
 
+        Single-turn: fresh context each call, no persistent history.
+        """
         try:
             response = await client.chat.completions.create(
                 model=GOD_MODEL,
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + self.conversation_history,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"=== WORLD TIDINGS ===\n\n{event_summary}\n\n"
+                            "Speak if guidance is needed, or hold your tongue. "
+                            "Remember: iambic pentameter, always."
+                        ),
+                    },
+                ],
                 tools=TOOLS,
                 tool_choice="auto",
                 temperature=0.9,
@@ -149,7 +152,6 @@ class HeraldGod:
         except Exception as exc:
             logger.exception("Herald LLM call failed")
             self.last_error = f"{type(exc).__name__}: {exc}"
-            self.conversation_history.pop()
             return None
 
         message = response.choices[0].message
@@ -157,38 +159,14 @@ class HeraldGod:
         if message.content:
             logger.info(f"[Herald thinks] {message.content}")
 
-        self.conversation_history.append({
-            "role": "assistant",
-            "content": message.content or "",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-                }
-                for tc in (message.tool_calls or [])
-            ] or None,
-        })
-
-        if message.tool_calls:
-            for tc in message.tool_calls:
-                self.conversation_history.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": "ok",
-                })
-
-        # Shorter history — the Herald is conversational but doesn't need deep memory
-        if len(self.conversation_history) > 30:
-            trimmed = self.conversation_history[-30:]
-            while trimmed and trimmed[0]["role"] not in ("user", "system"):
-                trimmed = trimmed[1:]
-            self.conversation_history = trimmed
-
         commands = []
         if message.tool_calls:
             tool_calls = message.tool_calls[:MAX_TOOL_CALLS_PER_RESPONSE]
-            commands, _ = translate_tool_calls(tool_calls, source="herald")
+            commands, errors = translate_tool_calls(tool_calls, source="herald")
+
+            if errors:
+                for err_msg in errors.values():
+                    logger.warning(f"[Herald] tool call rejected: {err_msg}")
 
             real_actions = [
                 tc for tc in tool_calls if tc.function.name != "do_nothing"

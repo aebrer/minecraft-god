@@ -39,17 +39,6 @@ class EventBuffer:
             chats = [e for e in self._events if e.get("type") == "chat"]
             return chats[-limit:]
 
-    def get_player_snapshot(self, player_name: str) -> dict | None:
-        """Return the current status dict for a specific player (non-destructive)."""
-        with self._lock:
-            if not self._latest_player_status:
-                return None
-            players = self._latest_player_status.get("players", [])
-            for p in players:
-                if p.get("name", "").lower() == player_name.lower():
-                    return p.copy()
-            return None
-
     def get_player_status(self) -> dict | None:
         with self._lock:
             return self._latest_player_status

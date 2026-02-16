@@ -7,7 +7,7 @@ import json
 import logging
 import re
 
-from server.schematics import browse_schematics, search_schematics, build_schematic_command
+from server.schematics import search_schematics, build_schematic_command
 
 logger = logging.getLogger("minecraft-god")
 
@@ -62,7 +62,8 @@ VALID_EFFECTS = {
 }
 
 
-def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> tuple[list[dict], dict[str, str]]:
+def translate_tool_calls(tool_calls: list, source: str = "kind_god",
+                         player_context: dict | None = None) -> tuple[list[dict], dict[str, str]]:
     """Convert LLM tool calls into a list of command dicts.
 
     Returns (commands, errors) where:
@@ -70,6 +71,9 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> tuple[li
         - errors: dict mapping tool_call_id -> error message for failed calls
 
     source: which god is speaking ("kind_god", "deep_god", "herald")
+    player_context: dict mapping player names (lowercase) to their position/facing data,
+        used for resolving build_schematic placement. Each entry has:
+        {"x": int, "y": int, "z": int, "facing": str}
     """
     commands = []
     errors = {}
@@ -78,7 +82,7 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> tuple[li
             name = tc.function.name
             args = json.loads(tc.function.arguments)
             logger.info(f"[{source}] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
-            result = _translate_one(tc, source)
+            result = _translate_one(tc, source, player_context=player_context)
             if result is None:
                 # Build an error message based on what failed
                 error = _describe_failure(name, args)
@@ -106,7 +110,12 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god") -> tuple[li
 
 
 def _describe_failure(name: str, args: dict) -> str | None:
-    """Return a human-readable error for a failed tool call, or None for silent drops."""
+    """Return a human-readable error for a tool call rejected by validation.
+
+    Called when _translate_one() returns None. This only handles local validation
+    failures (bad arguments, unknown IDs, blocked items) — NOT network/timeout
+    errors, which are handled upstream by the prayer queue retry mechanism.
+    """
     if name == "do_nothing":
         return None  # intentional no-op
     if name == "build_schematic":
@@ -125,27 +134,28 @@ def _describe_failure(name: str, args: dict) -> str | None:
         if not found:
             return (f"ERROR: Blueprint '{bp_id}' not found. The ID may be misspelled. "
                     f"Copy the exact ID from the search results and try again.")
-        # Coordinate validation
-        for coord_name in ("x", "y", "z"):
-            val = args.get(coord_name)
-            try:
-                n = int(val)
-                if abs(n) > 30000:
-                    return f"ERROR: Coordinate {coord_name}={val} is out of range (max 30000)."
-            except (TypeError, ValueError):
-                return f"ERROR: Invalid coordinate {coord_name}={val}. Must be an integer."
-    if name == "summon_mob":
+        near_player = args.get("near_player", "")
+        if not near_player:
+            return "ERROR: build_schematic requires 'near_player' — specify which player to build near."
+        return None  # build_schematic args look valid, failure was elsewhere
+    elif name == "summon_mob":
         mob = args.get("mob_type", "").lower().replace("minecraft:", "")
         if mob not in VALID_MOBS:
             return f"ERROR: Invalid mob type '{mob}'."
-    if name == "give_effect":
+    elif name == "give_effect":
         effect = args.get("effect", "").lower()
         if effect not in VALID_EFFECTS:
             return f"ERROR: Invalid effect '{effect}'."
-    return None
+    elif name == "give_item":
+        item = args.get("item", "").lower().replace("minecraft:", "")
+        if item in BLOCKED_ITEMS:
+            return f"ERROR: '{item}' is a restricted item and cannot be given."
+    # Catch-all for any other tool call that was rejected
+    return f"ERROR: {name} failed. Check the arguments and try again."
 
 
-def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | None:
+def _translate_one(tool_call, source: str = "kind_god",
+                   player_context: dict | None = None) -> dict | list[dict] | None:
     name = tool_call.function.name
     args = json.loads(tool_call.function.arguments)
 
@@ -179,7 +189,7 @@ def _translate_one(tool_call, source: str = "kind_god") -> dict | list[dict] | N
     elif name == "assign_mission":
         return _assign_mission(args, source)
     elif name == "build_schematic":
-        return _build_schematic(args)
+        return _build_schematic(args, player_context=player_context)
     elif name == "undo_last_build":
         return {"type": "undo_last_build"}
     else:
@@ -222,8 +232,12 @@ def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | N
     style = args.get("style", "chat")
     target = args.get("target_player")
 
-    # Sanitize message — no newlines, cap length
-    message = message.replace("\n", " ").strip()[:200]
+    # Sanitize message — no newlines, cap length per style
+    # Title: big on-screen text, only visible ~3 seconds — keep very short
+    # Actionbar: small text above hotbar — moderate length
+    # Chat: scrollable chat window — can be longer
+    max_len = {"title": 40, "actionbar": 80}.get(style, 200)
+    message = message.replace("\n", " ").strip()[:max_len]
 
     if style == "title":
         text_json = json.dumps({"text": message})
@@ -460,20 +474,79 @@ def _validate_coordinate(val) -> int | None:
     return None
 
 
-def _build_schematic(args: dict) -> dict | None:
+# Direction offsets: (dx, dz) per unit distance
+_DIRECTION_OFFSETS = {
+    "N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0),
+    "NE": (1, -1), "SE": (1, 1), "SW": (-1, 1), "NW": (-1, -1),
+}
+
+# Distance presets in blocks
+_DISTANCE_BLOCKS = {"near": 10, "medium": 25, "far": 50}
+
+# Facing direction to compass mapping (same as plugin's cardinal calculation)
+_FACING_TO_COMPASS = {
+    "S": "S", "SW": "SW", "W": "W", "NW": "NW",
+    "N": "N", "NE": "NE", "E": "E", "SE": "SE",
+}
+
+
+def _build_schematic(args: dict, player_context: dict | None = None) -> dict | None:
     blueprint_id = args.get("blueprint_id", "")
-    x = _validate_coordinate(args.get("x"))
-    y = _validate_coordinate(args.get("y"))
-    z = _validate_coordinate(args.get("z"))
-    if x is None or y is None or z is None:
-        logger.warning(f"Blocked build_schematic with invalid coordinates: {args}")
-        return None
+    near_player = args.get("near_player", "")
+    in_front = args.get("in_front", True)  # default to in_front
+    direction = args.get("direction", "N")
+    distance_key = args.get("distance", "near")
     rotation = args.get("rotation", 0)
+
+    if not near_player:
+        logger.warning("build_schematic missing near_player")
+        return None
+
+    # Look up player position
+    player_data = None
+    if player_context:
+        player_data = player_context.get(near_player.lower())
+
+    if not player_data:
+        logger.warning(f"build_schematic: no position data for player '{near_player}'")
+        return None
+
+    px, py, pz = player_data["x"], player_data["y"], player_data["z"]
+    facing = player_data.get("facing", "N")
+
+    # Resolve direction
+    if in_front:
+        compass = _FACING_TO_COMPASS.get(facing, "N")
+    else:
+        compass = direction.upper()
+        if compass not in _DIRECTION_OFFSETS:
+            logger.warning(f"build_schematic: invalid direction '{direction}'")
+            compass = "N"
+
+    # Resolve distance
+    dist = _DISTANCE_BLOCKS.get(distance_key, 10)
+
+    # Compute target coordinates
+    dx, dz = _DIRECTION_OFFSETS[compass]
+    # For diagonals, scale so total distance matches (dx and dz are +-1)
+    if abs(dx) + abs(dz) == 2:
+        # Diagonal: use 0.7 * dist on each axis (~same total distance)
+        x = int(px + dx * int(dist * 0.7))
+        z = int(pz + dz * int(dist * 0.7))
+    else:
+        x = int(px + dx * dist)
+        z = int(pz + dz * dist)
+    y = py  # ground level at player's Y
+
+    logger.info(f"build_schematic: resolved {near_player} "
+                f"({'in_front' if in_front else compass} {distance_key}) "
+                f"-> ({x}, {y}, {z})")
+
     return build_schematic_command(blueprint_id, x, y, z, rotation)
 
 
 def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:
-    """Process browse/inspect schematic tool calls and return tool results.
+    """Process schematic search tool calls and return tool results.
 
     Returns a dict mapping tool_call_id -> result text.
     These are meant to be injected back into the conversation as tool results
@@ -484,14 +557,13 @@ def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:
         name = tc.function.name
         try:
             args = json.loads(tc.function.arguments)
-        except (json.JSONDecodeError, AttributeError):
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"Failed to parse arguments for {name}: {e}")
+            results[tc.id] = f"ERROR: Could not parse tool arguments. Please try again with valid JSON."
             continue
 
         if name == "search_schematics":
             query = args.get("query", "")
             results[tc.id] = search_schematics(query)
-        elif name == "browse_schematics":
-            category = args.get("category", "all")
-            results[tc.id] = browse_schematics(category)
 
     return results

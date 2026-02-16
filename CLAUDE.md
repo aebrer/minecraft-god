@@ -26,7 +26,7 @@ server/
   llm.py          - shared OpenAI client pointed at z.ai
   events.py       - EventBuffer: accumulation + summarization
   commands.py     - tool call → Minecraft command (with allowlist, Java Edition syntax)
-  schematics.py   - schematic catalog: browse/inspect/build for divine construction
+  schematics.py   - schematic catalog: search/build for divine construction
   kind_god.py     - Kind God: prompt, tools, conversation history, multi-turn tool use
   deep_god.py     - Deep God: prompt, restricted tools, trigger logic
   herald_god.py   - Herald: poetic messenger in iambic pentameter
@@ -129,7 +129,7 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - 2,139 blueprints across 30 categories scraped from GrabCraft
 - Pipeline: `scripts/schematics/scrape_grabcraft.py` (index → fetch → convert → catalog)
 - Sponge Schematic v2 (.schem) format, read by schematic4j in the Java plugin
-- Kind God has multi-turn tool use (max 5 turns): browse_schematics → inspect_schematic → build_schematic
+- Kind God has multi-turn tool use (max 3 turns): search_schematics → build_schematic (+ error retry)
 - Plugin places blocks progressively bottom-to-top with lightning, particles, and completion sound
 - `scripts/schematics/data/` is gitignored (raw blueprint cache, ~500MB)
 - To expand: `cd scripts/schematics && ../../../venv/bin/python3 scrape_grabcraft.py fetch --category <name> && ../../../venv/bin/python3 scrape_grabcraft.py convert && ../../../venv/bin/python3 scrape_grabcraft.py catalog`

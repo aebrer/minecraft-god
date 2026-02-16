@@ -10,5 +10,5 @@ logger = logging.getLogger("minecraft-god")
 client = AsyncOpenAI(
     api_key=ZHIPU_API_KEY,
     base_url=LLM_BASE_URL,
-    timeout=httpx.Timeout(120.0, connect=10.0),  # 2 min total, 10s connect
+    timeout=httpx.Timeout(300.0, connect=10.0),  # 5 min total, 10s connect
 )

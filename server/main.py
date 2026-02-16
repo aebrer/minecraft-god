@@ -1,7 +1,7 @@
 """FastAPI backend for minecraft-god.
 
-Receives game events from the behavior pack, batches them, feeds them to the gods,
-and queues commands for the behavior pack to execute.
+Receives game events from the Paper plugin, batches them, feeds them to the gods,
+and queues commands for the Paper plugin to execute.
 """
 
 import asyncio
@@ -144,6 +144,39 @@ def _prayer_abandoned_commands(player: str) -> list[dict]:
     ]
 
 
+def _build_player_context(player_status: dict | None, prayer_snapshot: dict | None = None) -> dict:
+    """Build a player_context dict mapping lowercase player names to position/facing data.
+
+    Combines the latest player_status beacon with an optional prayer snapshot
+    (which has the most accurate position for the praying player).
+    """
+    ctx = {}
+
+    # Start with the periodic status beacon (covers all online players)
+    if player_status and player_status.get("players"):
+        for p in player_status["players"]:
+            loc = p.get("location", {})
+            x, y, z = loc.get("x"), loc.get("y"), loc.get("z")
+            if x is not None and y is not None and z is not None:
+                ctx[p["name"].lower()] = {
+                    "x": int(x), "y": int(y), "z": int(z),
+                    "facing": p.get("facing", "N"),
+                }
+
+    # Override with the prayer snapshot (captured at the exact moment they spoke)
+    if prayer_snapshot:
+        loc = prayer_snapshot.get("location", {})
+        x, y, z = loc.get("x"), loc.get("y"), loc.get("z")
+        name = prayer_snapshot.get("name", "")
+        if x is not None and y is not None and z is not None and name:
+            ctx[name.lower()] = {
+                "x": int(x), "y": int(y), "z": int(z),
+                "facing": prayer_snapshot.get("facing", "N"),
+            }
+
+    return ctx
+
+
 class GameEvent(BaseModel):
     type: str
     # All other fields are dynamic, so we accept anything
@@ -176,7 +209,7 @@ app = FastAPI(title="minecraft-god", lifespan=lifespan)
 
 @app.post("/event")
 async def receive_event(event: GameEvent):
-    """Receive a game event from the behavior pack."""
+    """Receive a game event from the Paper plugin."""
     event_data = event.model_dump()
     event_buffer.add(event_data)
 
@@ -213,7 +246,7 @@ async def receive_event(event: GameEvent):
 
 @app.get("/commands")
 async def get_commands():
-    """Return pending commands for the behavior pack to execute, then clear the queue.
+    """Return pending commands for the Paper plugin to execute, then clear the queue.
 
     Uses atomic swap to prevent duplicate delivery — even if two clients
     poll simultaneously, only one will receive the commands.
@@ -241,9 +274,7 @@ async def get_status():
         "divine_queue_size": prayer_queue.size,
         "command_queue_size": len(command_queue),
         "kind_god_action_count": kind_god.action_count,
-        "kind_god_history_length": len(kind_god.conversation_history),
-        "deep_god_history_length": len(deep_god.conversation_history),
-        "herald_history_length": len(herald_god.conversation_history),
+        "kind_god_activity_log": len(kind_god._recent_activity),
         "kind_god_memory_count": len(kind_god.memory.memories),
         "last_consolidation": kind_god.memory.last_consolidation,
         "ticks_until_consolidation": max(0, MEMORY_CONSOLIDATION_INTERVAL_TICKS - _ticks_since_consolidation),
@@ -283,6 +314,13 @@ async def _prayer_loop():
             break
         except Exception:
             logger.exception("Divine request processing failed")
+            # Requeue so the player isn't silently ignored
+            try:
+                prayer_queue.requeue(request)
+                if request.attempts >= MAX_ATTEMPTS:
+                    command_queue.extend(_prayer_abandoned_commands(request.player))
+            except Exception:
+                logger.exception("Failed to requeue after processing error")
 
 
 async def _process_divine_request(request: DivineRequest):
@@ -291,6 +329,7 @@ async def _process_divine_request(request: DivineRequest):
 
     event_summary = request.build_context()
     player_status = event_buffer.get_player_status()
+    player_context = _build_player_context(player_status, request.player_snapshot)
     tick_ts = time.strftime("%H:%M:%S")
     rt = request.request_type  # "prayer" or "herald"
 
@@ -342,7 +381,7 @@ async def _process_divine_request(request: DivineRequest):
             kind_god.notify_deep_god_acted()
             kind_god.reset_action_count()
         else:
-            commands = await kind_god.think(event_summary)
+            commands = await kind_god.think(event_summary, player_context=player_context)
 
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "kind", "action": "prayer_error",
@@ -420,6 +459,7 @@ async def _god_tick_inner():
         return
 
     player_status = event_buffer.get_player_status()
+    player_context = _build_player_context(player_status)
 
     tick_ts = time.strftime("%H:%M:%S")
     acting_god = "kind"
@@ -441,7 +481,7 @@ async def _god_tick_inner():
         kind_god.notify_deep_god_acted()
         kind_god.reset_action_count()
     else:
-        commands = await kind_god.think(event_summary)
+        commands = await kind_god.think(event_summary, player_context=player_context)
 
         if commands is None:
             command_queue.extend(_god_failure_commands("kind"))
@@ -488,6 +528,6 @@ async def _god_tick_inner():
         _ticks_since_consolidation = 0
         logger.info("=== KIND GOD MEMORY CONSOLIDATION ===")
         try:
-            await kind_god.memory.consolidate(kind_god.conversation_history)
+            await kind_god.memory.consolidate(kind_god._recent_activity)
         except Exception:
             logger.exception("Memory consolidation failed")

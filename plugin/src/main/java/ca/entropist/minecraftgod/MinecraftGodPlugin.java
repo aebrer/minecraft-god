@@ -193,7 +193,12 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 .build();
 
         httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .exceptionally(e -> null); // silently fail — god simply "blinked"
+                .exceptionally(e -> {
+                    if ("chat".equals(eventType)) {
+                        getLogger().warning("Failed to send chat event to backend: " + e.getMessage());
+                    }
+                    return null;
+                });
     }
 
     // ─── Event Handlers ─────────────────────────────────────────────────────────
@@ -202,16 +207,22 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
-        // Build full player snapshot on the main thread (needed for block/entity scanning),
-        // then send the chat event with the snapshot embedded.
+        // AsyncPlayerChatEvent fires off the main thread, but world state access
+        // (block scanning, entity scanning, raycasts) requires the main thread.
         // 1-tick delay is negligible — the player hasn't moved.
         Bukkit.getScheduler().runTask(this, () -> {
             JsonObject data = new JsonObject();
             data.addProperty("player", player.getName());
             data.addProperty("message", message);
-            data.add("location", locationToJson(player.getLocation()));
-            data.addProperty("dimension", dimensionId(player.getWorld()));
-            data.add("playerSnapshot", buildPlayerSnapshot(player));
+            try {
+                data.add("location", locationToJson(player.getLocation()));
+                data.addProperty("dimension", dimensionId(player.getWorld()));
+                data.add("playerSnapshot", buildPlayerSnapshot(player));
+            } catch (Exception e) {
+                getLogger().warning("Failed to build player snapshot for " + player.getName()
+                        + ": " + e.getMessage());
+                // Send event without snapshot — prayer still reaches backend
+            }
             sendEvent("chat", data);
         });
     }
@@ -767,6 +778,10 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                     totalPlaced++;
                 } catch (Exception e) {
                     // Skip blocks with invalid block states (e.g. removed in newer versions)
+                    if (totalPlaced == 0 || placed == 0) {
+                        getLogger().warning("Schematic " + blueprintId + ": block placement failed at "
+                                + bp.x + "," + bp.y + "," + bp.z + ": " + e.getMessage());
+                    }
                     totalPlaced++;
                 }
             }
@@ -786,6 +801,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 // setBlockData(data, true) only notifies neighbors — tick() actually
                 // schedules the block itself (repeaters start cycling, observers fire, etc.)
                 int ticked = 0;
+                int tickFailed = 0;
                 for (BlockPlacement bp : allPlacements) {
                     try {
                         Block block = world.getBlockAt(bp.x, bp.y, bp.z);
@@ -793,9 +809,17 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                             block.tick();
                             ticked++;
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        if (tickFailed == 0) {
+                            getLogger().warning("Schematic " + blueprintId
+                                    + ": block tick failed at " + bp.x + "," + bp.y + "," + bp.z
+                                    + ": " + e.getMessage());
+                        }
+                        tickFailed++;
+                    }
                 }
-                getLogger().info("Schematic " + blueprintId + ": ticked " + ticked + " blocks");
+                getLogger().info("Schematic " + blueprintId + ": ticked " + ticked + " blocks"
+                        + (tickFailed > 0 ? " (" + tickFailed + " failed)" : ""));
 
                 // Completion effects
                 world.spawnParticle(Particle.TOTEM_OF_UNDYING,
@@ -824,6 +848,7 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
         }
 
         int restored = 0;
+        int failed = 0;
         for (BlockPlacement bp : snapshot.originalBlocks()) {
             try {
                 Block block = snapshot.world().getBlockAt(bp.x, bp.y, bp.z);
@@ -831,17 +856,26 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 block.setBlockData(data, false);
                 restored++;
             } catch (Exception e) {
-                // Skip blocks with invalid states (e.g. mod blocks no longer loaded)
+                if (failed == 0) {
+                    getLogger().warning("Undo: failed to restore block at "
+                            + bp.x + "," + bp.y + "," + bp.z + ": " + e.getMessage());
+                }
+                failed++;
             }
         }
 
-        getLogger().info("Undo: restored " + restored + " blocks (was: " + snapshot.blueprintId() + ")");
+        getLogger().info("Undo: restored " + restored + " blocks"
+                + (failed > 0 ? " (" + failed + " failed)" : "")
+                + " (was: " + snapshot.blueprintId() + ")");
 
         // Visual feedback
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
                 "playsound minecraft:entity.evoker.prepare_wololo master @a");
 
-        return "§aUndid §f" + snapshot.blueprintId() + "§a (" + restored + " blocks restored)";
+        String result = "§aUndid §f" + snapshot.blueprintId() + "§a (" + restored + " blocks restored";
+        if (failed > 0) result += ", " + failed + " failed";
+        result += ")";
+        return result;
     }
 
     // ─── Protected Blocks ──────────────────────────────────────────────────────────
