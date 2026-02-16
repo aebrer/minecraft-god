@@ -79,23 +79,21 @@ When the Deep God intercepts a prayer instead of the Kind God, the player sees c
 | Strike lightning | yes | yes | no |
 | Teleport players | yes | no | no |
 | Assign quests | yes | no | no |
-| Place/fill blocks | yes | no | no |
 | Build schematics | yes (multi-turn) | no | no |
 | Do nothing (explicitly) | yes | yes | yes |
 
 ### Divine Construction
 
-The Kind God can browse, search, and build structures from a library of schematics using multi-turn tool calling:
+The Kind God can search and build structures from a library of schematics using multi-turn tool calling:
 
 1. God decides to build → calls `search_schematics("medieval blacksmith")`
-2. Reviews results → calls `inspect_schematic("medieval-blacksmith-forge")`
-3. Checks dimensions and details → calls `build_schematic(blueprint_id, x, y, z, rotation)`
+2. Reviews results → calls `build_schematic(blueprint_id, near_player)` — the backend resolves placement coordinates from the player's position and facing direction
 
 The plugin places blocks progressively bottom-to-top with lightning, particles, and a completion sound. The schematic pipeline scrapes blueprints from public sources and converts them to Sponge Schematic v2 format — schematics aren't included in this repo (not redistributable), but the pipeline is.
 
 ### Security
 
-All tool calls are translated through a command allowlist — only ~13 Minecraft command prefixes are permitted. Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM to mitigate prompt injection. Mob summons are capped at 5, fill commands at 500 blocks, effects at 120 seconds. There is no `eval()`, no shell execution, no filesystem access in the pipeline.
+All tool calls are translated through a command allowlist — only ~13 Minecraft command prefixes are permitted. Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM to mitigate prompt injection. Mob summons are capped at 5, effects at 120 seconds, and build placement is resolved server-side (the LLM never computes coordinates). No dynamic code execution, no shell access, no filesystem access in the pipeline.
 
 The worst case from a prompt injection is the god saying something weird or summoning some mobs. Which is kind of on-brand.
 

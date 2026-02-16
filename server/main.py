@@ -293,7 +293,8 @@ async def _prayer_loop():
     """Background loop that processes divine requests (prayers + herald) from the queue.
 
     Acquires _tick_lock to prevent concurrent god think() calls with the
-    timer tick — conversation history is not safe for concurrent access.
+    timer tick — shared state (command_queue, action counts) is not safe for
+    concurrent access.
     """
     logger.info("Divine request processing loop started")
     while True:
@@ -313,11 +314,13 @@ async def _prayer_loop():
         except asyncio.CancelledError:
             break
         except Exception:
-            logger.exception("Divine request processing failed")
+            logger.exception(
+                f"Divine request processing failed for {request.player}'s "
+                f"{request.request_type}: \"{request.message[:60]}\""
+            )
             # Requeue so the player isn't silently ignored
             try:
-                prayer_queue.requeue(request)
-                if request.attempts >= MAX_ATTEMPTS:
+                if not prayer_queue.requeue(request):
                     command_queue.extend(_prayer_abandoned_commands(request.player))
             except Exception:
                 logger.exception("Failed to requeue after processing error")
@@ -345,8 +348,7 @@ async def _process_divine_request(request: DivineRequest):
         if commands is None:
             _recent_logs.append({"time": tick_ts, "god": "herald", "action": "herald_error",
                                  "error": herald_god.last_error, "player": request.player})
-            prayer_queue.requeue(request)
-            if request.attempts >= MAX_ATTEMPTS:
+            if not prayer_queue.requeue(request):
                 command_queue.extend(_prayer_abandoned_commands(request.player))
             logger.warning(f"[herald] Herald failed for {request.player} "
                            f"(attempt {request.attempts}/{MAX_ATTEMPTS})")
@@ -371,8 +373,7 @@ async def _process_divine_request(request: DivineRequest):
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "deep", "action": "prayer_error",
                                      "error": deep_god.last_error, "player": request.player})
-                prayer_queue.requeue(request)
-                if request.attempts >= MAX_ATTEMPTS:
+                if not prayer_queue.requeue(request):
                     command_queue.extend(_prayer_abandoned_commands(request.player))
                 logger.warning(f"[prayer] Deep God failed for {request.player} "
                                f"(attempt {request.attempts}/{MAX_ATTEMPTS})")
@@ -386,8 +387,7 @@ async def _process_divine_request(request: DivineRequest):
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "kind", "action": "prayer_error",
                                      "error": kind_god.last_error, "player": request.player})
-                prayer_queue.requeue(request)
-                if request.attempts >= MAX_ATTEMPTS:
+                if not prayer_queue.requeue(request):
                     command_queue.extend(_prayer_abandoned_commands(request.player))
                 logger.warning(f"[prayer] Kind God failed for {request.player} "
                                f"(attempt {request.attempts}/{MAX_ATTEMPTS})")

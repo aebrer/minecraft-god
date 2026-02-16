@@ -197,7 +197,7 @@ def _translate_one(tool_call, source: str = "kind_god",
         return None
 
 
-# Regex for valid player names (Xbox gamertags: alphanumeric + spaces, 1-15 chars)
+# Regex for valid player names (Java Edition: alphanumeric + underscores, 3-16 chars)
 _PLAYER_NAME_RE = re.compile(r"^[a-zA-Z0-9_ ]{1,32}$")
 # Regex for valid coordinates (numbers, ~, ^, -, .)
 _COORD_RE = re.compile(r"^[~^0-9. -]+$")
@@ -483,13 +483,6 @@ _DIRECTION_OFFSETS = {
 # Distance presets in blocks
 _DISTANCE_BLOCKS = {"near": 10, "medium": 25, "far": 50}
 
-# Facing direction to compass mapping (same as plugin's cardinal calculation)
-_FACING_TO_COMPASS = {
-    "S": "S", "SW": "SW", "W": "W", "NW": "NW",
-    "N": "N", "NE": "NE", "E": "E", "SE": "SE",
-}
-
-
 def _build_schematic(args: dict, player_context: dict | None = None) -> dict | None:
     blueprint_id = args.get("blueprint_id", "")
     near_player = args.get("near_player", "")
@@ -516,7 +509,8 @@ def _build_schematic(args: dict, player_context: dict | None = None) -> dict | N
 
     # Resolve direction
     if in_front:
-        compass = _FACING_TO_COMPASS.get(facing, "N")
+        # Use player's facing direction; fall back to N if facing is unrecognized
+        compass = facing if facing in _DIRECTION_OFFSETS else "N"
     else:
         compass = direction.upper()
         if compass not in _DIRECTION_OFFSETS:

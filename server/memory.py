@@ -102,7 +102,7 @@ class KindGodMemory:
             + "\n=== END MEMORIES ==="
         )
 
-    async def consolidate(self, conversation_history: list[dict]) -> None:
+    async def consolidate(self, recent_activity: list[dict]) -> None:
         """Run the consolidation LLM call and update memories."""
         # Format current memories for the prompt
         if self.memories:
@@ -113,10 +113,10 @@ class KindGodMemory:
         else:
             current = "You have no memories yet."
 
-        # Format recent conversation history as readable text
-        recent = _format_history_for_consolidation(conversation_history)
+        # Format recent activity log as readable text
+        recent = _format_history_for_consolidation(recent_activity)
         if not recent:
-            logger.info("Consolidation skipped — no conversation history to review")
+            logger.info("Consolidation skipped — no recent activity to review")
             return
 
         user_message = (

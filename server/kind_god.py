@@ -477,11 +477,11 @@ class KindGod:
                 ],
             })
 
-            # Check if any tool calls are browsing tools that need follow-up
+            # Check if any tool calls are search tools that need follow-up
             search_calls = [tc for tc in tool_calls if tc.function.name in SEARCH_TOOLS]
             action_calls = [tc for tc in tool_calls if tc.function.name not in SEARCH_TOOLS]
 
-            # Get results for browsing tools
+            # Get results for search tools
             search_results = get_schematic_tool_results(search_calls) if search_calls else {}
 
             # Translate action tool calls to commands
@@ -494,7 +494,7 @@ class KindGod:
             # Add tool result messages for ALL tool calls
             for tc in tool_calls:
                 if tc.id in search_results:
-                    # Browsing tool — inject the actual result
+                    # Search tool — inject the actual result
                     conversation.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -514,7 +514,7 @@ class KindGod:
                         "content": "ok",
                     })
 
-            # Track actions (browsing and do_nothing don't count)
+            # Track actions (search and do_nothing don't count)
             real_actions = [
                 tc for tc in action_calls if tc.function.name != "do_nothing"
             ]
@@ -525,13 +525,11 @@ class KindGod:
                     f"total count: {self.action_count})"
                 )
 
-            # Track building state (has_searched is set in the continue logic below)
-
             if any(tc.function.name == "build_schematic" for tc in action_calls):
                 has_built = True
 
-            # Continue if: browsing tools need follow-up, action errors need retry,
-            # or we've been browsing but haven't built yet
+            # Continue if: search tools need follow-up, action errors need retry,
+            # or we've searched but haven't built yet
             if action_errors:
                 logger.info(f"Kind God had {len(action_errors)} failed tool call(s) "
                             f"(turn {turn + 1}), retrying...")

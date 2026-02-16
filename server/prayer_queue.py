@@ -8,6 +8,7 @@ has moved on by the time the request is processed.
 import asyncio
 import logging
 from dataclasses import dataclass
+from typing import Literal
 
 from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
 
@@ -30,7 +31,7 @@ class DivineRequest:
     """A player-initiated request waiting for divine response."""
     player: str
     message: str
-    request_type: str              # "prayer" or "herald"
+    request_type: Literal["prayer", "herald"]
     timestamp: float
     player_snapshot: dict          # full player status dict at request time
     recent_chat: list[dict]       # nearby chat messages for context
@@ -131,8 +132,8 @@ class DivineRequestQueue:
         """Block until a request is available."""
         return await self._queue.get()
 
-    def requeue(self, request: DivineRequest):
-        """Put a failed request back for retry."""
+    def requeue(self, request: DivineRequest) -> bool:
+        """Put a failed request back for retry. Returns False if abandoned."""
         request.attempts += 1
         if request.attempts < MAX_ATTEMPTS:
             self._queue.put_nowait(request)
@@ -140,11 +141,13 @@ class DivineRequestQueue:
                 f"[{request.request_type}] {request.player} requeued "
                 f"(attempt {request.attempts}/{MAX_ATTEMPTS})"
             )
+            return True
         else:
             logger.warning(
                 f"[{request.request_type}] {request.player} abandoned after "
                 f"{MAX_ATTEMPTS} attempts: \"{request.message[:60]}\""
             )
+            return False
 
     @property
     def size(self) -> int:
