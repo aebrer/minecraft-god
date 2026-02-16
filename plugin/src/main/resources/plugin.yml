@@ -10,3 +10,6 @@ commands:
     description: Undo the most recent divine construction
     usage: /godundo
     permission: op
+  godhelp:
+    description: Learn how the gods of this server work
+    usage: /godhelp
