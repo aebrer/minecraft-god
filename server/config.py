@@ -31,6 +31,7 @@ BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 # Kind God memory
 MEMORY_DIR = _project_root / "data"
 MEMORY_FILE = MEMORY_DIR / "kind_god_memory.json"
+CONSOLIDATION_LOG_FILE = MEMORY_DIR / "consolidation_log.json"
 MEMORY_MAX_ENTRIES = int(os.getenv("MEMORY_MAX_ENTRIES", "15"))
 MEMORY_CONSOLIDATION_INTERVAL_SECONDS = int(os.getenv("MEMORY_CONSOLIDATION_INTERVAL", str(3 * 3600)))  # default 3 hours
 
@@ -39,3 +40,6 @@ PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "
 
 # Herald keywords — trigger the Herald, NOT the Kind God
 HERALD_KEYWORDS = {"herald", "bard", "guide"}
+
+# Remember keywords — trigger immediate memory consolidation
+REMEMBER_KEYWORDS = {"remember"}

@@ -39,9 +39,24 @@ def test_classify_prayer_takes_priority_over_herald():
     assert classify_divine_request("God please herald guide me") == "prayer"
 
 
+def test_classify_remember_keyword():
+    assert classify_divine_request("remember this place") == "remember"
+
+
+def test_classify_prayer_takes_priority_over_remember():
+    """Prayer keywords beat remember when both present."""
+    assert classify_divine_request("God please remember me") == "prayer"
+
+
+def test_classify_remember_takes_priority_over_herald():
+    """Remember beats herald when both present."""
+    assert classify_divine_request("remember herald") == "remember"
+
+
 def test_classify_case_insensitive():
     assert classify_divine_request("GOD HELP ME") == "prayer"
     assert classify_divine_request("HERALD tell me") == "herald"
+    assert classify_divine_request("REMEMBER this") == "remember"
 
 
 def test_is_divine_request_true_for_prayer():
@@ -50,6 +65,10 @@ def test_is_divine_request_true_for_prayer():
 
 def test_is_divine_request_true_for_herald():
     assert is_divine_request("herald guide me") is True
+
+
+def test_is_divine_request_true_for_remember():
+    assert is_divine_request("remember this") is True
 
 
 def test_is_divine_request_false_for_regular_chat():

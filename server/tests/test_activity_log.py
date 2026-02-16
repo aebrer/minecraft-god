@@ -2,11 +2,12 @@
 
 Covers _log_activity timestamping, _summarize_commands extraction
 for different command types (tellraw, build_schematic, plain commands),
-and edge cases like empty command lists.
+log persistence, and the "remember" trigger.
 """
 
 import json
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import server.main as main_module
@@ -120,3 +121,87 @@ def test_log_activity_caps_at_max():
     finally:
         main_module._consolidation_log.clear()
         main_module._consolidation_log.extend(original)
+
+
+# ---------------------------------------------------------------------------
+# Persistence — save/load activity log to disk
+# ---------------------------------------------------------------------------
+
+
+def test_save_and_load_consolidation_log(tmp_path):
+    """Activity log survives a save/load roundtrip."""
+    original = main_module._consolidation_log.copy()
+    original_path = main_module.CONSOLIDATION_LOG_FILE
+    try:
+        test_file = tmp_path / "consolidation_log.json"
+        main_module.CONSOLIDATION_LOG_FILE = test_file
+        main_module._consolidation_log.clear()
+        main_module._consolidation_log.extend(["[12:00] CHAT: Steve: hello", "[12:01] DEATH: Alex"])
+        main_module._save_consolidation_log()
+        assert test_file.exists()
+
+        # Clear and reload
+        main_module._consolidation_log.clear()
+        main_module._load_consolidation_log()
+        assert len(main_module._consolidation_log) == 2
+        assert "Steve: hello" in main_module._consolidation_log[0]
+    finally:
+        main_module.CONSOLIDATION_LOG_FILE = original_path
+        main_module._consolidation_log.clear()
+        main_module._consolidation_log.extend(original)
+
+
+def test_load_missing_file_is_noop(tmp_path):
+    """Loading from a nonexistent file doesn't crash or add entries."""
+    original = main_module._consolidation_log.copy()
+    original_path = main_module.CONSOLIDATION_LOG_FILE
+    try:
+        main_module.CONSOLIDATION_LOG_FILE = tmp_path / "nonexistent.json"
+        main_module._consolidation_log.clear()
+        main_module._load_consolidation_log()
+        assert len(main_module._consolidation_log) == 0
+    finally:
+        main_module.CONSOLIDATION_LOG_FILE = original_path
+        main_module._consolidation_log.clear()
+        main_module._consolidation_log.extend(original)
+
+
+def test_load_corrupt_file_is_noop(tmp_path):
+    """Loading from a corrupt file doesn't crash or add entries."""
+    original = main_module._consolidation_log.copy()
+    original_path = main_module.CONSOLIDATION_LOG_FILE
+    try:
+        test_file = tmp_path / "consolidation_log.json"
+        test_file.write_text("not json {{{")
+        main_module.CONSOLIDATION_LOG_FILE = test_file
+        main_module._consolidation_log.clear()
+        main_module._load_consolidation_log()
+        assert len(main_module._consolidation_log) == 0
+    finally:
+        main_module.CONSOLIDATION_LOG_FILE = original_path
+        main_module._consolidation_log.clear()
+        main_module._consolidation_log.extend(original)
+
+
+# ---------------------------------------------------------------------------
+# _trigger_remember — force flag and in-game feedback
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_remember_sets_force_flag():
+    """Remember keyword sets the force consolidation flag."""
+    original_flag = main_module._force_consolidation
+    original_queue = main_module.command_queue.copy()
+    try:
+        main_module._force_consolidation = False
+        main_module.command_queue.clear()
+        main_module._trigger_remember("Steve")
+        assert main_module._force_consolidation is True
+        # Should produce tellraw + playsound commands
+        assert len(main_module.command_queue) == 2
+        assert "tellraw" in main_module.command_queue[0].get("command", "")
+        assert "playsound" in main_module.command_queue[1].get("command", "")
+    finally:
+        main_module._force_consolidation = original_flag
+        main_module.command_queue.clear()
+        main_module.command_queue.extend(original_queue)

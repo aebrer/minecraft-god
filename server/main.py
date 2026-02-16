@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, MEMORY_CONSOLIDATION_INTERVAL_SECONDS
+from server.config import GOD_TICK_INTERVAL, MEMORY_CONSOLIDATION_INTERVAL_SECONDS, CONSOLIDATION_LOG_FILE
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
@@ -49,11 +49,36 @@ _tick_lock = asyncio.Lock()
 # Ring buffer of recent god decisions and commands for debugging
 _recent_logs: collections.deque = collections.deque(maxlen=50)
 # Activity log for memory consolidation — human-readable timeline of all god/player activity.
-# Does not persist across restarts; only the consolidated memories survive.
+# Persists to data/consolidation_log.json on shutdown and loads on startup.
 _consolidation_log: list[str] = []
 _CONSOLIDATION_LOG_MAX = 500
 # Cooldown after failed consolidation to avoid hammering a failing LLM every tick
 _consolidation_cooldown_until: float = 0
+# Force flag — set by "remember" keyword to trigger immediate consolidation
+_force_consolidation: bool = False
+
+
+def _load_consolidation_log():
+    """Load the activity log from disk if it exists."""
+    if not CONSOLIDATION_LOG_FILE.exists():
+        return
+    try:
+        data = json.loads(CONSOLIDATION_LOG_FILE.read_text())
+        if isinstance(data, list):
+            _consolidation_log.extend(data[:_CONSOLIDATION_LOG_MAX])
+            logger.info(f"Loaded {len(_consolidation_log)} activity log entries from disk")
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Activity log file corrupt — starting with empty log")
+
+
+def _save_consolidation_log():
+    """Save the activity log to disk."""
+    CONSOLIDATION_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        CONSOLIDATION_LOG_FILE.write_text(json.dumps(_consolidation_log))
+    except OSError:
+        logger.exception("Failed to save activity log to disk")
+
 
 def _log_activity(entry: str):
     """Append a timestamped entry to the consolidation activity log."""
@@ -185,6 +210,22 @@ def _prayer_abandoned_commands(player: str) -> list[dict]:
     ]
 
 
+def _trigger_remember(player: str):
+    """Handle a 'remember' keyword — force immediate consolidation on next tick."""
+    global _force_consolidation
+    _force_consolidation = True
+    command_queue.append(
+        _make_tellraw(
+            "The Kind God closes its eyes and reflects on all that has passed...",
+            target=player, color="gold", italic=True,
+        )
+    )
+    command_queue.append(
+        {"command": f"playsound minecraft:block.amethyst_block.chime master {player}"}
+    )
+    logger.info(f"[remember] {player} triggered memory consolidation")
+
+
 def _build_player_context(player_status: dict | None, prayer_snapshot: dict | None = None) -> dict:
     """Build a player_context dict mapping lowercase player names to position/facing data.
 
@@ -229,6 +270,7 @@ async def lifespan(app: FastAPI):
     """Start the god tick loop and prayer loop on startup, cancel on shutdown."""
     global _tick_task, _prayer_task
     logger.info("minecraft-god backend starting up")
+    _load_consolidation_log()
     _tick_task = asyncio.create_task(_god_tick_loop())
     _prayer_task = asyncio.create_task(_prayer_loop())
     yield
@@ -240,9 +282,10 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
-    # Flush memory to disk on shutdown
+    # Flush state to disk on shutdown
     kind_god.memory._save()
-    logger.info("Kind God memory saved")
+    _save_consolidation_log()
+    logger.info("Kind God memory and activity log saved")
 
 
 app = FastAPI(title="minecraft-god", lifespan=lifespan)
@@ -279,14 +322,18 @@ async def receive_event(event: GameEvent):
     if event_data.get("type") == "player_leave":
         _log_activity(f"LEAVE: {event_data.get('player', '?')} left the world")
 
-    # Check chat for prayer or herald keywords — both go through the queue
+    # Check chat for prayer, herald, or remember keywords
     if event_data.get("type") == "chat":
         player_name = event_data.get("player", event_data.get("sender", "?"))
         message = event_data.get("message", "")
         request_type = classify_divine_request(message)
 
-        if request_type:
-            # Log the prayer/herald request — it will be marked as answered later
+        if request_type == "remember":
+            # "remember" triggers immediate memory consolidation
+            _log_activity(f'REMEMBER: {player_name}: "{message}"')
+            _trigger_remember(player_name)
+        elif request_type:
+            # Prayer or herald — queue for divine response
             label = "PRAYER" if request_type == "prayer" else "HERALD REQUEST"
             _log_activity(f'{label}: {player_name}: "{message}"')
 
@@ -497,20 +544,26 @@ async def _process_divine_request(request: DivineRequest):
 async def _maybe_consolidate():
     """Run memory consolidation if activity has accumulated and enough wall-clock time has passed.
 
+    Fires immediately if _force_consolidation is set (triggered by "remember" keyword).
     Runs even when no players are online — the Kind God reflects on
     accumulated activity regardless of current server state.
     """
-    global _consolidation_cooldown_until
+    global _consolidation_cooldown_until, _force_consolidation
 
     if not _consolidation_log:
+        _force_consolidation = False
         return  # nothing to reflect on
 
     now = time.time()
-    if now < _consolidation_cooldown_until:
-        return  # still in cooldown after a failure
 
-    if kind_god.memory.seconds_since_consolidation() < MEMORY_CONSOLIDATION_INTERVAL_SECONDS:
-        return  # not time yet
+    if _force_consolidation:
+        _force_consolidation = False
+        logger.info("[remember] Forced consolidation triggered by player")
+    else:
+        if now < _consolidation_cooldown_until:
+            return  # still in cooldown after a failure
+        if kind_god.memory.seconds_since_consolidation() < MEMORY_CONSOLIDATION_INTERVAL_SECONDS:
+            return  # not time yet
 
     snapshot_len = len(_consolidation_log)
     logger.info(f"=== KIND GOD MEMORY CONSOLIDATION ({snapshot_len} entries) ===")
@@ -520,6 +573,7 @@ async def _maybe_consolidate():
         # Remove only the entries we snapshot — new entries appended during
         # the LLM call are preserved for the next consolidation
         del _consolidation_log[:snapshot_len]
+        _save_consolidation_log()
         _recent_logs.append({"time": time.strftime("%H:%M:%S"),
                              "action": "consolidation_complete",
                              "entries_processed": len(activity_snapshot),
@@ -528,6 +582,7 @@ async def _maybe_consolidate():
         logger.exception("Memory consolidation failed")
         # Cooldown: wait one full interval before retrying
         _consolidation_cooldown_until = now + MEMORY_CONSOLIDATION_INTERVAL_SECONDS
+        _save_consolidation_log()
         _recent_logs.append({"time": time.strftime("%H:%M:%S"),
                              "action": "consolidation_error",
                              "error": f"{type(exc).__name__}: {exc}"})

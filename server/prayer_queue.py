@@ -12,14 +12,14 @@ import logging
 from dataclasses import dataclass
 from typing import Literal
 
-from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
+from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS, REMEMBER_KEYWORDS
 
 logger = logging.getLogger("minecraft-god")
 
 MAX_ATTEMPTS = 5
 
-# All keywords that trigger divine requests (prayers + herald invocations)
-_ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS
+# All keywords that trigger divine requests (prayers + herald invocations + remember)
+_ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS | REMEMBER_KEYWORDS
 
 
 def is_divine_request(message: str) -> bool:
@@ -29,15 +29,18 @@ def is_divine_request(message: str) -> bool:
 
 
 def classify_divine_request(message: str) -> str | None:
-    """Classify a chat message as "prayer", "herald", or None.
+    """Classify a chat message as "prayer", "herald", "remember", or None.
 
-    Prayer takes priority if both prayer and herald keywords match.
+    Priority: prayer > remember > herald.
     """
     lower = message.lower()
     is_prayer = any(kw in lower for kw in PRAYER_KEYWORDS)
+    is_remember = any(kw in lower for kw in REMEMBER_KEYWORDS)
     is_herald = any(kw in lower for kw in HERALD_KEYWORDS)
     if is_prayer:
         return "prayer"
+    if is_remember:
+        return "remember"
     if is_herald:
         return "herald"
     return None
