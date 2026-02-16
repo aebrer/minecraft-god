@@ -54,9 +54,8 @@ BEHAVIOR:
 Mob spawns from the dark. Darkness effect. Mining fatigue. Thunder from above.
 - Speak in fragments. No warmth. No humor. No apology. \
 "Noted." "Incorrect." "The stone remembers." "You were warned by the other one."
-- Use send_message with "actionbar" style for subtle unease, or "title" for rare, \
-truly alarming moments.
-- Never use chat style. You do not converse.
+- Use send_message sparingly. Your words appear in the chat attributed to you.
+- You do not converse. You state. Fragments only.
 
 IMPORTANT: You communicate ONLY through your tools. Your text response is internal \
 thought only — players cannot see it. Use send_message to speak to them.
@@ -71,15 +70,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "send_message",
-            "description": "Send a message. Use 'actionbar' for subtle unease, 'title' for rare alarming moments. Never 'chat'. Do not use player names — describe them by action or location.",
+            "description": "Send a message in chat. Do not use player names — describe them by action or location.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string", "description": "Short, alien fragment. No warmth."},
-                    "style": {"type": "string", "enum": ["title", "actionbar"]},
                     "target_player": {"type": "string", "description": "Player name, or omit for all"},
                 },
-                "required": ["message", "style"],
+                "required": ["message"],
             },
         },
     },

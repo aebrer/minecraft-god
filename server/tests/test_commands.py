@@ -109,21 +109,33 @@ def test_chat_message_private():
     assert "whispers to Steve" in cmds[1]["command"]
 
 
-def test_title_message():
+def test_title_style_becomes_tellraw():
+    """Title style is accepted but routes through tellraw chat."""
     cmd = _cmd("send_message", {"message": "Big text", "style": "title"})
-    assert "title @a title" in cmd["command"]
+    assert "tellraw @a" in cmd["command"]
+    assert "Big text" in cmd["command"]
 
 
-def test_actionbar_message():
+def test_actionbar_style_becomes_tellraw():
+    """Actionbar style is accepted but routes through tellraw chat."""
     cmd = _cmd("send_message", {"message": "Status text", "style": "actionbar"})
-    assert "title @a actionbar" in cmd["command"]
+    assert "tellraw @a" in cmd["command"]
+    assert "Status text" in cmd["command"]
 
 
-def test_message_length_cap_title():
-    long_msg = "A" * 100
-    cmd = _cmd("send_message", {"message": long_msg, "style": "title"})
-    payload = json.loads(cmd["command"].split("title @a title ")[1])
-    assert len(payload["text"]) <= 40
+def test_message_without_style():
+    """Style parameter is optional — defaults to chat/tellraw."""
+    cmd = _cmd("send_message", {"message": "Hello"})
+    assert "tellraw @a" in cmd["command"]
+    assert "Hello" in cmd["command"]
+
+
+def test_message_length_cap():
+    long_msg = "A" * 300
+    cmd = _cmd("send_message", {"message": long_msg})
+    # Message should be capped at 200 chars
+    assert "A" * 200 in cmd["command"]
+    assert "A" * 201 not in cmd["command"]
 
 
 def test_message_newline_stripped():
@@ -416,19 +428,20 @@ def test_teleport_invalid_player_blocked():
 
 def test_assign_mission_basic():
     cmds = _cmds("assign_mission", {"player": "Steve", "mission_title": "Find Diamonds"})
-    assert len(cmds) >= 2  # at least title + broadcast
-    assert any("title Steve title" in c["command"] for c in cmds)
-    assert any("Find Diamonds" in c["command"] for c in cmds)
+    assert len(cmds) == 1  # single tellraw announcement
+    assert "tellraw @a" in cmds[0]["command"]
+    assert "Find Diamonds" in cmds[0]["command"]
+    assert "Steve" in cmds[0]["command"]
 
 
-def test_assign_mission_with_subtitle():
+def test_assign_mission_with_description():
     cmds = _cmds("assign_mission", {
         "player": "Steve",
         "mission_title": "Explore",
         "mission_description": "Find the stronghold",
     })
-    assert len(cmds) == 3  # subtitle + title + broadcast
-    assert any("subtitle" in c["command"] for c in cmds)
+    assert len(cmds) == 1
+    assert "Find the stronghold" in cmds[0]["command"]
 
 
 def test_assign_mission_with_reward():

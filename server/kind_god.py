@@ -104,15 +104,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "send_message",
-            "description": "Send a message to players. 'title' = dramatic text on screen, 'chat' = message in chat window, 'actionbar' = subtle hint in action bar.",
+            "description": "Send a message to players in the chat window. Messages are attributed to you and visible in chat history.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string", "description": "The message text (keep it short)"},
-                    "style": {"type": "string", "enum": ["title", "chat", "actionbar"]},
                     "target_player": {"type": "string", "description": "Specific player name, or omit for all"},
                 },
-                "required": ["message", "style"],
+                "required": ["message"],
             },
         },
     },

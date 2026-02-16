@@ -68,15 +68,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "send_message",
-            "description": "Speak to the players in iambic pentameter. ALWAYS use 'chat' style. Keep to 2-4 lines of verse.",
+            "description": "Speak to the players in iambic pentameter. Keep to 2-4 lines of verse.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string", "description": "Your message in iambic pentameter. Each line should be 10 syllables."},
-                    "style": {"type": "string", "enum": ["chat"]},
                     "target_player": {"type": "string", "description": "Specific player name, or omit for all"},
                 },
-                "required": ["message", "style"],
+                "required": ["message"],
             },
         },
     },
