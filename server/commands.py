@@ -311,6 +311,7 @@ def _summon_mob(args: dict) -> list[dict] | None:
 def _change_weather(args: dict) -> dict | None:
     weather = args.get("weather_type", "clear").lower()
     if weather not in ("clear", "rain", "thunder"):
+        logger.warning(f"Blocked invalid weather type: {weather}")
         return None
     duration = min(max(args.get("duration", 6000), 1), 24000)
     return _cmd(f"weather {weather} {duration}")
@@ -333,6 +334,7 @@ def _set_time(args: dict) -> dict | None:
     time_val = args.get("time", "day").lower()
     valid_times = {"day", "noon", "sunset", "night", "midnight", "sunrise"}
     if time_val not in valid_times:
+        logger.warning(f"Blocked invalid time value: {time_val}")
         return None
     return _cmd(f"time set {time_val}")
 
@@ -394,6 +396,7 @@ def _play_sound(args: dict) -> dict | None:
 def _set_difficulty(args: dict) -> dict | None:
     difficulty = args.get("difficulty", "normal").lower()
     if difficulty not in ("peaceful", "easy", "normal", "hard"):
+        logger.warning(f"Blocked invalid difficulty: {difficulty}")
         return None
     return _cmd(f"difficulty {difficulty}")
 
@@ -449,29 +452,6 @@ def _assign_mission(args: dict, source: str = "kind_god") -> list[dict]:
         commands.append(cmd)
 
     return commands
-
-
-def _validate_block(block: str) -> str | None:
-    """Validate and clean a block type. Returns cleaned name or None if blocked."""
-    block = block.lower().replace("minecraft:", "").strip()
-    if not block or not re.match(r"^[a-z0-9_]+$", block):
-        logger.warning(f"Blocked invalid block name: {block}")
-        return None
-    if block in BLOCKED_ITEMS:
-        logger.warning(f"Blocked dangerous block type: {block}")
-        return None
-    return block
-
-
-def _validate_coordinate(val) -> int | None:
-    """Validate a single coordinate value (integer, clamped to reasonable range)."""
-    try:
-        n = int(val)
-        if -30000 <= n <= 30000:
-            return n
-    except (TypeError, ValueError):
-        pass
-    return None
 
 
 # Direction offsets: (dx, dz) per unit distance

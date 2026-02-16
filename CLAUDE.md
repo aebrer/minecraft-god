@@ -9,7 +9,7 @@ Paper MC server (Java Edition) + two LLM deities watching over players. See ARCH
 ## Tech Stack
 - **Plugin**: Java Paper plugin (`plugin/`) — event listeners, HTTP bridge to backend
 - **Backend**: Python 3.11+, FastAPI, uvicorn
-- **LLM**: GLM-4.7 via z.ai (OpenAI-compatible, use `openai` SDK with custom base_url)
+- **LLM**: GLM-5 via z.ai (OpenAI-compatible, use `openai` SDK with custom base_url)
 - **Server**: Paper MC 1.21.11 (Java Edition)
 
 ## Key Architecture
@@ -30,9 +30,9 @@ server/
   kind_god.py     - Kind God: prompt, tools, fresh context per call, multi-turn tool use
   deep_god.py     - Deep God: prompt, restricted tools, trigger logic
   herald_god.py   - Herald: poetic messenger in iambic pentameter
-  memory.py       - Kind God persistent memory (consolidation across sessions)
+  memory.py       - Kind God persistent memory (wall-clock consolidation timer, LLM consolidation call)
   deaths.py       - DeathMemorial: persistent death records
-  main.py         - FastAPI app, endpoints, dual-deity tick loop
+  main.py         - FastAPI app, endpoints, dual-deity tick loop, activity log
 
 plugin/
   pom.xml                                    - Maven build file
@@ -44,9 +44,12 @@ paper/                    - Paper server runtime (not tracked in git)
   plugins/                - built plugin goes here
   server.properties       - server config (spawn-protection=0)
 
+backups/                  - rolling world backups (not tracked in git)
+
 scripts/
   start.sh          - launch both Paper + backend
   stop.sh           - graceful shutdown
+  backup_world.sh   - world backup (stops Paper, tars world, restarts, prunes old)
   schematics/       - GrabCraft → .schem data pipeline
     scrape_grabcraft.py  - scraper + converter + catalog generator
     blockmap_raw.csv     - block name mappings (GrabCraft → minecraft:id)
@@ -140,10 +143,48 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 - Forced trigger when Kind God action_count >= threshold (6)
 - On regular (non-prayer) ticks, all player positions are checked
 
+## Kind God Memory & Consolidation
+- The Kind God has persistent memory stored in `data/kind_god_memory.json`
+- Memories are consolidated on a **wall-clock timer** (default 3 hours, configurable via `MEMORY_CONSOLIDATION_INTERVAL` env var in seconds)
+- Consolidation runs even when no players are online — the god reflects on accumulated activity
+- A global **activity log** (`_consolidation_log` in main.py) captures timestamped entries:
+  - Player chats (regular and prayers, with prayers labeled)
+  - Non-silent god actions (Kind God, Deep God, Herald) with command summaries
+  - Player deaths, joins, and leaves
+- On consolidation, the full activity log is sent to the LLM which reviews and updates the god's memories
+- Memories and the consolidation timer persist across restarts (stored as unix timestamp in the JSON file). The activity log also persists — saved to `data/consolidation_log.json` on shutdown and after each consolidation cycle, reloaded on startup
+- Players can say "remember" in chat to force immediate consolidation (bypasses the 3-hour timer, respects failure cooldown). "remember" takes priority over prayer keywords — queued through the same DivineRequestQueue with full player context snapshot
+- The `/status` endpoint shows `consolidation_log_entries`, `last_consolidation_ago`, and `next_consolidation_in`
+
 ## Server Restart Procedure
 1. Run `scripts/schematics/announce_restart.py` for RCON countdown (30s/15s/5s/3/2/1)
 2. `systemctl --user restart minecraft-god-paper` (for Paper/plugin changes)
 3. `systemctl --user restart minecraft-god-backend` (for backend Python changes)
 - Backend restarts are safe without announcement (just a few seconds of god silence)
 - Paper restarts kick all players — always announce first
+
+## Testing
+```bash
+venv/bin/python3 -m pytest server/tests/ -v
+```
+
+Tests live in `server/tests/`. A pre-commit hook runs them automatically — commits are blocked if tests fail.
+
+**Testing principles:**
+- Test through public interfaces (`add()`, `get_player_status()`), not internal state
+- Tests describe **what** the system does, not **how** — they should survive refactors
+- One test, one behavior: each test verifies a single observable outcome
+- No mocking internal collaborators — mock only external boundaries (time, network, LLM)
+- Tests should read like specifications: a new contributor should understand the system by reading them
+- Prioritize critical paths and complex logic (staleness, trigger logic, command translation) over trivial getters
+
+## World Backups
+- Automated via systemd timer: `minecraft-god-backup.timer` fires at **02:00** and **14:00** daily
+- Script: `scripts/backup_world.sh` — stops Paper, tars `paper/world/`, restarts Paper, prunes old backups
+- Stored in `backups/` as `god-world-YYYY-MM-DD-HHMM.tar.gz` (~40-50MB each)
+- Rolling window: keeps last **6 backups** (3 days), oldest are pruned automatically
+- Paper is stopped during backup (~5 seconds of downtime) for a consistent snapshot
+- Check status: `systemctl --user list-timers | grep backup`
+- Manual backup: `systemctl --user start minecraft-god-backup.service`
+- Restore: stop Paper, extract backup into `paper/`, restart Paper
 

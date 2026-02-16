@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from server.config import PRAYER_KEYWORDS, HERALD_KEYWORDS
+from server.prayer_queue import is_divine_request
 
 logger = logging.getLogger("minecraft-god")
 
@@ -11,27 +11,24 @@ logger = logging.getLogger("minecraft-god")
 class EventBuffer:
     """Accumulates game events and drains them as summarized text for the LLM."""
 
+    # Player status older than this is considered stale (no one online)
+    _STATUS_STALE_SECONDS = 120
+
     def __init__(self):
         self._events: list[dict] = []
         self._lock = Lock()
         self._latest_player_status: dict | None = None
+        self._player_status_time: float = 0
+        self._stale_logged: bool = False
 
     def add(self, event: dict):
         with self._lock:
             if event.get("type") == "player_status":
                 self._latest_player_status = event
+                self._player_status_time = time.time()
+                self._stale_logged = False
             else:
                 self._events.append(event)
-
-    def has_divine_request(self) -> bool:
-        """Check if any recent chat event contains prayer or herald keywords."""
-        with self._lock:
-            for event in self._events:
-                if event.get("type") == "chat":
-                    message = event.get("message", "").lower()
-                    if any(kw in message for kw in PRAYER_KEYWORDS | HERALD_KEYWORDS):
-                        return True
-        return False
 
     def get_recent_chat(self, limit: int = 10) -> list[dict]:
         """Return recent chat events (non-destructive) for prayer context snapshots."""
@@ -41,14 +38,25 @@ class EventBuffer:
 
     def get_player_status(self) -> dict | None:
         with self._lock:
+            if self._latest_player_status is None:
+                return None
+            # Status beacon stops when no players are online — if it hasn't
+            # been refreshed recently, treat it as stale (no one online)
+            if time.time() - self._player_status_time > self._STATUS_STALE_SECONDS:
+                if not self._stale_logged:
+                    age = time.time() - self._player_status_time
+                    logger.info(f"[status] Player status gone stale ({age:.0f}s since last beacon)")
+                    self._stale_logged = True
+                return None
             return self._latest_player_status
 
     def drain_and_summarize(self, death_memorial=None, filter_divine: bool = False) -> str | None:
         """Drain the buffer and return a human-readable summary for the LLM.
 
         Returns None if nothing happened worth reporting.
-        If filter_divine is True, chat messages containing prayer or herald keywords
-        are excluded (they'll be handled by the divine request queue instead).
+        If filter_divine is True, chat messages containing divine request keywords
+        (prayer, herald, or remember) are excluded — they're handled by the
+        divine request queue instead.
         """
         with self._lock:
             events = self._events.copy()
@@ -56,15 +64,12 @@ class EventBuffer:
             player_status = self._latest_player_status
 
         if filter_divine:
-            _all_keywords = PRAYER_KEYWORDS | HERALD_KEYWORDS
             filtered = []
             stripped_count = 0
             for e in events:
-                if e.get("type") == "chat":
-                    message = e.get("message", "").lower()
-                    if any(kw in message for kw in _all_keywords):
-                        stripped_count += 1
-                        continue
+                if e.get("type") == "chat" and is_divine_request(e.get("message", "")):
+                    stripped_count += 1
+                    continue
                 filtered.append(e)
             if stripped_count:
                 logger.info(f"[tick] Filtered {stripped_count} divine request chat(s) from tick context")

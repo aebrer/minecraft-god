@@ -6,6 +6,7 @@ about where and how players have died before.
 
 import json
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,8 +31,11 @@ class DeathMemorial:
                 self.deaths = json.loads(DEATH_FILE.read_text())
                 total = sum(len(v) for v in self.deaths.values())
                 logger.info(f"Loaded {total} death records for {len(self.deaths)} players")
-            except Exception:
-                logger.exception("Failed to load death records")
+            except (json.JSONDecodeError, UnicodeDecodeError, KeyError, ValueError):
+                # Data file is corrupted — back it up before falling back to empty
+                backup = DEATH_FILE.with_suffix(f".corrupt.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json")
+                shutil.copy2(DEATH_FILE, backup)
+                logger.exception(f"Corrupted death records — backed up to {backup.name}, starting fresh")
                 self.deaths = {}
 
     def _save(self):

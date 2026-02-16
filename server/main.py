@@ -8,6 +8,7 @@ import asyncio
 import collections
 import json
 import logging
+import os
 import random
 import time
 
@@ -15,13 +16,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from server.config import GOD_TICK_INTERVAL, PRAYER_KEYWORDS, HERALD_KEYWORDS, MEMORY_CONSOLIDATION_INTERVAL_TICKS
+from server.config import GOD_TICK_INTERVAL, MEMORY_CONSOLIDATION_INTERVAL_SECONDS, CONSOLIDATION_LOG_FILE
 from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
 from server.herald_god import HeraldGod
 from server.deaths import DeathMemorial
-from server.prayer_queue import DivineRequest, DivineRequestQueue, MAX_ATTEMPTS
+from server.prayer_queue import DivineRequest, DivineRequestQueue, MAX_ATTEMPTS, classify_divine_request
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,9 +47,80 @@ prayer_queue = DivineRequestQueue()
 _tick_task: asyncio.Task | None = None
 _prayer_task: asyncio.Task | None = None
 _tick_lock = asyncio.Lock()
-_ticks_since_consolidation: int = 0
 # Ring buffer of recent god decisions and commands for debugging
 _recent_logs: collections.deque = collections.deque(maxlen=50)
+# Activity log for memory consolidation — human-readable timeline of all god/player activity.
+# Persists to data/consolidation_log.json on shutdown and loads on startup.
+_consolidation_log: list[str] = []
+_CONSOLIDATION_LOG_MAX = 500
+# Cooldown after failed consolidation to avoid hammering a failing LLM every tick
+_consolidation_cooldown_until: float = 0
+
+
+def _load_consolidation_log():
+    """Load the activity log from disk if it exists."""
+    if not CONSOLIDATION_LOG_FILE.exists():
+        return
+    try:
+        data = json.loads(CONSOLIDATION_LOG_FILE.read_text())
+        if isinstance(data, list):
+            _consolidation_log.extend(data[:_CONSOLIDATION_LOG_MAX])
+            logger.info(f"Loaded {len(_consolidation_log)} activity log entries from disk")
+        else:
+            logger.warning(
+                f"Activity log file contains {type(data).__name__} instead of list "
+                "— starting with empty log"
+            )
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        logger.exception("Activity log file corrupt — starting with empty log")
+
+
+def _save_consolidation_log():
+    """Save the activity log to disk (atomic write via tmp + replace)."""
+    CONSOLIDATION_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        tmp_path = CONSOLIDATION_LOG_FILE.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(_consolidation_log))
+        os.replace(tmp_path, CONSOLIDATION_LOG_FILE)
+    except OSError:
+        logger.exception("Failed to save activity log to disk")
+
+
+def _log_activity(entry: str):
+    """Append a timestamped entry to the consolidation activity log."""
+    if len(_consolidation_log) >= _CONSOLIDATION_LOG_MAX:
+        logger.warning(
+            f"Consolidation log at capacity ({_CONSOLIDATION_LOG_MAX} entries) "
+            "— dropping oldest entry. Consolidation may be failing."
+        )
+        _consolidation_log.pop(0)
+    ts = time.strftime("%H:%M")
+    _consolidation_log.append(f"[{ts}] {entry}")
+
+
+def _summarize_commands(commands: list[dict]) -> str:
+    """Produce a short summary of commands for the activity log."""
+    parts = []
+    for c in commands:
+        if c.get("type") == "build_schematic":
+            parts.append(f"build_schematic({c.get('blueprint_id')})")
+        else:
+            cmd = c.get("command", "?")
+            # Extract the meaningful part of tellraw commands
+            if "tellraw" in cmd and '"text"' in cmd:
+                try:
+                    text_json = cmd.split("tellraw")[1].strip()
+                    # Skip the target selector, grab the JSON
+                    json_start = text_json.index("[")
+                    parsed = json.loads(text_json[json_start:])
+                    msg = parsed[0].get("text", "?") if parsed else "?"
+                    parts.append(f'said: "{msg[:80]}"')
+                    continue
+                except (ValueError, json.JSONDecodeError, IndexError, KeyError):
+                    pass
+            parts.append(cmd[:80])
+    return "; ".join(parts) if parts else "silence"
+
 
 # --- In-game feedback messages ---
 
@@ -188,6 +260,7 @@ async def lifespan(app: FastAPI):
     """Start the god tick loop and prayer loop on startup, cancel on shutdown."""
     global _tick_task, _prayer_task
     logger.info("minecraft-god backend starting up")
+    _load_consolidation_log()
     _tick_task = asyncio.create_task(_god_tick_loop())
     _prayer_task = asyncio.create_task(_prayer_loop())
     yield
@@ -199,9 +272,10 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
-    # Flush memory to disk on shutdown
+    # Flush state to disk on shutdown
     kind_god.memory._save()
-    logger.info("Kind God memory saved")
+    _save_consolidation_log()
+    logger.info("Kind God memory and activity log saved")
 
 
 app = FastAPI(title="minecraft-god", lifespan=lifespan)
@@ -213,33 +287,64 @@ async def receive_event(event: GameEvent):
     event_data = event.model_dump()
     event_buffer.add(event_data)
 
-    # Record player deaths persistently
+    # Log non-status events (status beacon fires every ~30s, too noisy)
+    event_type = event_data.get("type", "?")
+    if event_type != "player_status":
+        logger.info(f"[event] {event_type}" + (
+            f" from {event_data.get('player', '?')}" if event_data.get("player") else ""))
+
+    # Record player deaths persistently + activity log
     if event_data.get("type") == "entity_die" and event_data.get("isPlayer"):
         death_memorial.record_death(event_data)
+        player_name = event_data.get("playerName", "?")
+        cause = event_data.get("cause", "unknown")
+        killer = event_data.get("damagingEntity", "")
+        loc = event_data.get("location", {})
+        death_desc = f"{player_name} died ({cause}"
+        if killer:
+            death_desc += f", killed by {killer}"
+        death_desc += f") at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')})"
+        _log_activity(f"DEATH: {death_desc}")
 
-    # Check chat for prayer or herald keywords — both go through the queue
+    # Player joins/leaves
+    if event_data.get("type") in ("player_join", "player_initial_spawn"):
+        _log_activity(f"JOIN: {event_data.get('player', '?')} joined the world")
+    if event_data.get("type") == "player_leave":
+        _log_activity(f"LEAVE: {event_data.get('player', '?')} left the world")
+
+    # Check chat for prayer, herald, or remember keywords
     if event_data.get("type") == "chat":
-        message = event_data.get("message", "").lower()
-        is_prayer = any(kw in message for kw in PRAYER_KEYWORDS)
-        is_herald = any(kw in message for kw in HERALD_KEYWORDS)
+        player_name = event_data.get("player", event_data.get("sender", "?"))
+        message = event_data.get("message", "")
+        request_type = classify_divine_request(message)
 
-        if is_prayer or is_herald:
-            # Determine request type: prayer takes priority if both match
-            request_type = "prayer" if is_prayer else "herald"
-            player_name = event_data.get("player", event_data.get("sender", "?"))
+        if request_type:
+            # Divine request — queue for processing (prayer, herald, or remember)
+            if request_type == "remember":
+                snapshot = event_data.get("playerSnapshot") or {}
+                loc = snapshot.get("location", {})
+                pos = f" at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')})" if loc else ""
+                _log_activity(f'REMEMBER: {player_name}{pos}: "{message}"')
+            else:
+                label = "PRAYER" if request_type == "prayer" else "HERALD REQUEST"
+                _log_activity(f'{label}: {player_name}: "{message}"')
+
             # Use the inline snapshot from the chat event (built on the plugin's
             # main thread at the moment the player spoke — always fresh)
             player_snapshot = event_data.get("playerSnapshot") or {}
             recent_chat = event_buffer.get_recent_chat(limit=10)
             request = DivineRequest(
                 player=player_name,
-                message=event_data.get("message", ""),
+                message=message,
                 request_type=request_type,
                 timestamp=time.time(),
                 player_snapshot=player_snapshot,
                 recent_chat=recent_chat,
             )
             prayer_queue.enqueue(request)
+        else:
+            # Regular chat — log for consolidation context
+            _log_activity(f'CHAT: {player_name}: "{message}"')
 
     return {"status": "ok"}
 
@@ -269,15 +374,16 @@ async def inject_commands(commands: list[dict]):
 @app.get("/status")
 async def get_status():
     """Debug endpoint showing current state."""
+    secs_since = kind_god.memory.seconds_since_consolidation()
     return {
         "event_buffer_size": len(event_buffer._events),
         "divine_queue_size": prayer_queue.size,
         "command_queue_size": len(command_queue),
         "kind_god_action_count": kind_god.action_count,
-        "kind_god_activity_log": len(kind_god._recent_activity),
+        "consolidation_log_entries": len(_consolidation_log),
         "kind_god_memory_count": len(kind_god.memory.memories),
-        "last_consolidation": kind_god.memory.last_consolidation,
-        "ticks_until_consolidation": max(0, MEMORY_CONSOLIDATION_INTERVAL_TICKS - _ticks_since_consolidation),
+        "last_consolidation_ago": f"{secs_since:.0f}s" if secs_since != float("inf") else "never",
+        "next_consolidation_in": f"{max(0, MEMORY_CONSOLIDATION_INTERVAL_SECONDS - secs_since):.0f}s",
         "player_status": event_buffer.get_player_status(),
         "death_records": {p: len(d) for p, d in death_memorial.deaths.items()},
     }
@@ -290,7 +396,7 @@ async def get_logs():
 
 
 async def _prayer_loop():
-    """Background loop that processes divine requests (prayers + herald) from the queue.
+    """Background loop that processes divine requests (prayers, herald, remember) from the queue.
 
     Acquires _tick_lock to prevent concurrent god think() calls with the
     timer tick — shared state (command_queue, action counts) is not safe for
@@ -318,23 +424,102 @@ async def _prayer_loop():
                 f"Divine request processing failed for {request.player}'s "
                 f"{request.request_type}: \"{request.message[:60]}\""
             )
-            # Requeue so the player isn't silently ignored
-            try:
-                if not prayer_queue.requeue(request):
+            if request.request_type == "remember":
+                # Remember failures are handled internally; don't retry
+                command_queue.append(
+                    _make_tellraw(
+                        "The Kind God's reflection falters. Something went wrong.",
+                        target=request.player, color="red", italic=True,
+                    )
+                )
+            else:
+                # Requeue so the player isn't silently ignored
+                try:
+                    if not prayer_queue.requeue(request):
+                        command_queue.extend(_prayer_abandoned_commands(request.player))
+                except Exception:
+                    logger.exception("Failed to requeue after processing error")
                     command_queue.extend(_prayer_abandoned_commands(request.player))
-            except Exception:
-                logger.exception("Failed to requeue after processing error")
 
 
 async def _process_divine_request(request: DivineRequest):
-    """Process a single divine request (prayer or herald invocation) under _tick_lock."""
-    global command_queue
+    """Process a single divine request (prayer, herald, or remember) under _tick_lock."""
+    global command_queue, _consolidation_cooldown_until
+
+    tick_ts = time.strftime("%H:%M:%S")
+    rt = request.request_type
+
+    if rt == "remember":
+        # Memory consolidation — check preconditions, then attempt consolidation
+        if not _consolidation_log:
+            logger.info(f"[remember] {request.player} requested consolidation but activity log is empty")
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God has nothing new to reflect upon.",
+                    target=request.player, color="gray", italic=True,
+                )
+            )
+            _recent_logs.append({"time": tick_ts, "action": "remember_empty",
+                                 "player": request.player})
+            return
+
+        now = time.time()
+        if now < _consolidation_cooldown_until:
+            logger.info(f"[remember] {request.player} requested consolidation but still in cooldown")
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God is still recovering from a troubled reflection. Try again later.",
+                    target=request.player, color="gray", italic=True,
+                )
+            )
+            _recent_logs.append({"time": tick_ts, "action": "remember_cooldown",
+                                 "player": request.player})
+            return
+
+        # Preconditions met — send feedback and run consolidation
+        command_queue.append(
+            _make_tellraw(
+                "The Kind God closes its eyes and reflects on all that has passed...",
+                target=request.player, color="gold", italic=True,
+            )
+        )
+        command_queue.append(
+            {"command": f"playsound minecraft:block.amethyst_block.chime master {request.player}"}
+        )
+
+        snapshot_len = len(_consolidation_log)
+        logger.info(
+            f"=== KIND GOD MEMORY CONSOLIDATION "
+            f"(triggered by {request.player}, {snapshot_len} entries) ==="
+        )
+        activity_snapshot = _consolidation_log.copy()
+        try:
+            await kind_god.memory.consolidate(activity_snapshot)
+            del _consolidation_log[:snapshot_len]
+            _save_consolidation_log()
+            _recent_logs.append({"time": tick_ts, "action": "remember_consolidation",
+                                 "entries_processed": len(activity_snapshot),
+                                 "memories": len(kind_god.memory.memories),
+                                 "player": request.player})
+            _log_activity(f"Kind God consolidated memories (requested by {request.player})")
+        except Exception as exc:
+            logger.exception(f"Memory consolidation failed (requested by {request.player})")
+            _consolidation_cooldown_until = now + MEMORY_CONSOLIDATION_INTERVAL_SECONDS
+            _save_consolidation_log()
+            _recent_logs.append({"time": tick_ts, "action": "remember_error",
+                                 "error": f"{type(exc).__name__}: {exc}",
+                                 "player": request.player})
+            command_queue.append(
+                _make_tellraw(
+                    "The Kind God's reflection shatters. The memories slip away... try again later.",
+                    target=request.player, color="red", italic=True,
+                )
+            )
+        return
 
     event_summary = request.build_context()
     player_status = event_buffer.get_player_status()
     player_context = _build_player_context(player_status, request.player_snapshot)
-    tick_ts = time.strftime("%H:%M:%S")
-    rt = request.request_type  # "prayer" or "herald"
 
     logger.info(f"[{rt}] Processing {request.player}'s {rt} (lock acquired)")
     logger.info(f"[{rt}] LLM context for {request.player}:\n{event_summary}")
@@ -405,6 +590,9 @@ async def _process_divine_request(request: DivineRequest):
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": f"{rt}_answered",
                              "commands": cmd_summaries, "player": request.player,
                              "context": event_summary})
+        # Activity log — record god response to prayer/herald
+        god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald"}[acting_god]
+        _log_activity(f"{god_label} answered {request.player}'s {rt}: {_summarize_commands(commands)}")
     else:
         logger.info(f"[{rt}] {acting_god} god was silent for {request.player}'s {rt}")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": f"{rt}_silent",
@@ -420,6 +608,50 @@ async def _process_divine_request(request: DivineRequest):
         elif herald_commands:
             command_queue.extend(herald_commands)
             logger.info(f"[prayer] Queued {len(herald_commands)} Herald commands")
+            _log_activity(f"Herald also spoke about {request.player}'s prayer: {_summarize_commands(herald_commands)}")
+
+
+async def _maybe_consolidate():
+    """Run memory consolidation if activity has accumulated and enough wall-clock time has passed.
+
+    Runs even when no players are online — the Kind God reflects on
+    accumulated activity regardless of current server state.
+    Player-triggered consolidation ("remember" keyword) is handled separately
+    in _process_divine_request.
+    """
+    global _consolidation_cooldown_until
+
+    if not _consolidation_log:
+        return  # nothing to reflect on
+
+    now = time.time()
+    if now < _consolidation_cooldown_until:
+        return  # still in cooldown after a failure
+    if kind_god.memory.seconds_since_consolidation() < MEMORY_CONSOLIDATION_INTERVAL_SECONDS:
+        return  # not time yet
+
+    snapshot_len = len(_consolidation_log)
+    logger.info(f"=== KIND GOD MEMORY CONSOLIDATION ({snapshot_len} entries) ===")
+    activity_snapshot = _consolidation_log.copy()
+    try:
+        await kind_god.memory.consolidate(activity_snapshot)
+        # Remove only the entries we snapshot — new entries appended during
+        # the LLM call are preserved for the next consolidation
+        del _consolidation_log[:snapshot_len]
+        _save_consolidation_log()
+        _recent_logs.append({"time": time.strftime("%H:%M:%S"),
+                             "action": "consolidation_complete",
+                             "entries_processed": len(activity_snapshot),
+                             "memories": len(kind_god.memory.memories)})
+    except Exception as exc:
+        logger.exception("Memory consolidation failed")
+        # Cooldown: wait one full interval before retrying
+        _consolidation_cooldown_until = now + MEMORY_CONSOLIDATION_INTERVAL_SECONDS
+        _save_consolidation_log()
+        _recent_logs.append({"time": time.strftime("%H:%M:%S"),
+                             "action": "consolidation_error",
+                             "error": f"{type(exc).__name__}: {exc}"})
+        # Keep the log — will retry after cooldown
 
 
 async def _god_tick_loop():
@@ -449,16 +681,35 @@ async def _god_tick_inner():
     """Actual tick logic for spontaneous god actions (not prayers).
 
     Prayers are filtered out of the event summary — they're handled
-    separately by the prayer queue.
+    separately by the prayer queue.  Skips LLM god calls when no players
+    are online to avoid wasting API calls on weather-only ticks;
+    buffered events are drained and discarded to prevent buildup.
+    Memory consolidation runs on a wall-clock timer regardless of
+    player presence — the Kind God reflects even when alone.
     """
     global command_queue
+
+    # Memory consolidation — wall-clock timer, runs even with no players
+    await _maybe_consolidate()
+
+    player_status = event_buffer.get_player_status()
+    if not player_status or not player_status.get("players"):
+        # No one online — drain events so they don't pile up
+        discarded = event_buffer.drain_and_summarize(
+            death_memorial=death_memorial, filter_divine=True)
+        if discarded:
+            tick_ts = time.strftime("%H:%M:%S")
+            logger.info(f"[tick] Skipped — no players online (discarded {len(discarded)} chars of events)")
+            _recent_logs.append({"time": tick_ts, "action": "tick_idle_skip",
+                                 "reason": "no_players_online",
+                                 "discarded_chars": len(discarded)})
+        return
 
     event_summary = event_buffer.drain_and_summarize(
         death_memorial=death_memorial, filter_divine=True)
     if not event_summary:
         return
 
-    player_status = event_buffer.get_player_status()
     player_context = _build_player_context(player_status)
 
     tick_ts = time.strftime("%H:%M:%S")
@@ -500,6 +751,9 @@ async def _god_tick_inner():
         logger.info(f"[tick] {acting_god} god acted: {len(commands)} commands queued")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "tick_acted",
                              "commands": cmd_summaries, "context": event_summary})
+        # Activity log — spontaneous god action
+        god_label = "Kind God" if acting_god == "kind" else "Deep God"
+        _log_activity(f"{god_label} acted spontaneously: {_summarize_commands(commands)}")
     else:
         logger.info(f"[tick] {acting_god} god was silent")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": "tick_silent",
@@ -520,14 +774,4 @@ async def _god_tick_inner():
             herald_summaries = [c.get("command", "?")[:80] for c in herald_commands]
             _recent_logs.append({"time": tick_ts, "god": "herald", "action": "tick_spoke",
                                  "commands": herald_summaries})
-
-    # Memory consolidation check (only on full ticks, not herald-only)
-    global _ticks_since_consolidation
-    _ticks_since_consolidation += 1
-    if _ticks_since_consolidation >= MEMORY_CONSOLIDATION_INTERVAL_TICKS:
-        _ticks_since_consolidation = 0
-        logger.info("=== KIND GOD MEMORY CONSOLIDATION ===")
-        try:
-            await kind_god.memory.consolidate(kind_god._recent_activity)
-        except Exception:
-            logger.exception("Memory consolidation failed")
+            _log_activity(f"Herald spoke spontaneously: {_summarize_commands(herald_commands)}")
