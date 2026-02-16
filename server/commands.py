@@ -63,7 +63,8 @@ VALID_EFFECTS = {
 
 
 def translate_tool_calls(tool_calls: list, source: str = "kind_god",
-                         player_context: dict | None = None) -> tuple[list[dict], dict[str, str]]:
+                         player_context: dict | None = None,
+                         requesting_player: str | None = None) -> tuple[list[dict], dict[str, str]]:
     """Convert LLM tool calls into a list of command dicts.
 
     Returns (commands, errors) where:
@@ -74,6 +75,8 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
     player_context: dict mapping player names (lowercase) to their position/facing data,
         used for resolving build_schematic placement. Each entry has:
         {"x": int, "y": int, "z": int, "facing": str}
+    requesting_player: the player who triggered this action (e.g. the praying player).
+        Used as the default near_player for build_schematic when the LLM omits it.
     """
     commands = []
     errors = {}
@@ -82,7 +85,8 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
             name = tc.function.name
             args = json.loads(tc.function.arguments)
             logger.info(f"[{source}] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
-            result = _translate_one(tc, source, player_context=player_context)
+            result = _translate_one(tc, source, player_context=player_context,
+                                    requesting_player=requesting_player)
             if result is None:
                 # Build an error message based on what failed
                 error = _describe_failure(name, args)
@@ -134,10 +138,7 @@ def _describe_failure(name: str, args: dict) -> str | None:
         if not found:
             return (f"ERROR: Blueprint '{bp_id}' not found. The ID may be misspelled. "
                     f"Copy the exact ID from the search results and try again.")
-        near_player = args.get("near_player", "")
-        if not near_player:
-            return "ERROR: build_schematic requires 'near_player' — specify which player to build near."
-        return None  # build_schematic args look valid, failure was elsewhere
+        return None  # blueprint exists; failure was likely missing position data
     elif name == "summon_mob":
         mob = args.get("mob_type", "").lower().replace("minecraft:", "")
         if mob not in VALID_MOBS:
@@ -155,7 +156,8 @@ def _describe_failure(name: str, args: dict) -> str | None:
 
 
 def _translate_one(tool_call, source: str = "kind_god",
-                   player_context: dict | None = None) -> dict | list[dict] | None:
+                   player_context: dict | None = None,
+                   requesting_player: str | None = None) -> dict | list[dict] | None:
     name = tool_call.function.name
     args = json.loads(tool_call.function.arguments)
 
@@ -189,7 +191,8 @@ def _translate_one(tool_call, source: str = "kind_god",
     elif name == "assign_mission":
         return _assign_mission(args, source)
     elif name == "build_schematic":
-        return _build_schematic(args, player_context=player_context)
+        return _build_schematic(args, player_context=player_context,
+                                requesting_player=requesting_player)
     elif name == "undo_last_build":
         return {"type": "undo_last_build"}
     else:
@@ -427,22 +430,30 @@ _DIRECTION_OFFSETS = {
 # Distance presets in blocks
 _DISTANCE_BLOCKS = {"near": 10, "medium": 25, "far": 50}
 
-def _build_schematic(args: dict, player_context: dict | None = None) -> dict | None:
+def _build_schematic(args: dict, player_context: dict | None = None,
+                     requesting_player: str | None = None) -> dict | None:
     blueprint_id = args.get("blueprint_id", "")
-    near_player = args.get("near_player", "")
+    near_player = args.get("near_player", "") or requesting_player or ""
     in_front = args.get("in_front", True)  # default to in_front
     direction = args.get("direction", "N")
     distance_key = args.get("distance", "near")
     rotation = args.get("rotation", 0)
 
     if not near_player:
-        logger.warning("build_schematic missing near_player")
+        logger.warning("build_schematic missing near_player and no requesting_player")
         return None
 
-    # Look up player position
+    # Look up player position — fall back to requesting player if LLM misspelled the name
     player_data = None
     if player_context:
         player_data = player_context.get(near_player.lower())
+        if not player_data and requesting_player:
+            fallback = player_context.get(requesting_player.lower())
+            if fallback:
+                logger.info(f"build_schematic: '{near_player}' not found, "
+                            f"falling back to requesting player '{requesting_player}'")
+                player_data = fallback
+                near_player = requesting_player
 
     if not player_data:
         logger.warning(f"build_schematic: no position data for player '{near_player}'")

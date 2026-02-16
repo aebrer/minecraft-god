@@ -464,7 +464,8 @@ def test_assign_mission_invalid_player():
 # ---------------------------------------------------------------------------
 
 
-def _translate_build(args: dict, player_context: dict) -> tuple[list[dict], dict]:
+def _translate_build(args: dict, player_context: dict,
+                     requesting_player: str | None = None) -> tuple[list[dict], dict]:
     """Translate a build_schematic call with patched catalog validation."""
     tc = _make_tool_call("build_schematic", args)
     with patch("server.commands.build_schematic_command") as mock_build:
@@ -473,7 +474,8 @@ def _translate_build(args: dict, player_context: dict) -> tuple[list[dict], dict
             return {"type": "build_schematic", "blueprint_id": bp_id,
                     "x": x, "y": y, "z": z, "rotation": rotation}
         mock_build.side_effect = capture
-        return translate_tool_calls([tc], player_context=player_context)
+        return translate_tool_calls([tc], player_context=player_context,
+                                    requesting_player=requesting_player)
 
 
 def test_build_in_front_south():
@@ -529,6 +531,28 @@ def test_build_unknown_player_produces_no_commands():
     cmds, _ = _translate_build(
         {"blueprint_id": "test", "near_player": "Unknown"}, player_ctx)
     assert cmds == []
+
+
+def test_build_defaults_near_player_to_requesting_player():
+    """When LLM omits near_player, it defaults to the requesting (praying) player."""
+    player_ctx = {"testplayer": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
+    cmds, _ = _translate_build(
+        {"blueprint_id": "test", "in_front": True, "distance": "near"},
+        player_ctx, requesting_player="testplayer")
+    assert len(cmds) == 1
+    assert cmds[0]["x"] == 100
+    assert cmds[0]["z"] == 190  # N = -Z, near = 10
+
+
+def test_build_llm_misspelled_player_falls_back_to_requesting():
+    """When LLM misspells near_player, falls back to requesting player."""
+    player_ctx = {"testplayer": {"x": 100, "y": 64, "z": 200, "facing": "N"}}
+    cmds, _ = _translate_build(
+        {"blueprint_id": "test", "near_player": "tstplayer", "in_front": True, "distance": "near"},
+        player_ctx, requesting_player="testplayer")
+    assert len(cmds) == 1
+    assert cmds[0]["x"] == 100
+    assert cmds[0]["z"] == 190  # Falls back to testplayer's position
 
 
 # ---------------------------------------------------------------------------
