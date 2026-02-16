@@ -11,15 +11,20 @@ logger = logging.getLogger("minecraft-god")
 class EventBuffer:
     """Accumulates game events and drains them as summarized text for the LLM."""
 
+    # Player status older than this is considered stale (no one online)
+    _STATUS_STALE_SECONDS = 120
+
     def __init__(self):
         self._events: list[dict] = []
         self._lock = Lock()
         self._latest_player_status: dict | None = None
+        self._player_status_time: float = 0
 
     def add(self, event: dict):
         with self._lock:
             if event.get("type") == "player_status":
                 self._latest_player_status = event
+                self._player_status_time = time.time()
             else:
                 self._events.append(event)
 
@@ -41,6 +46,12 @@ class EventBuffer:
 
     def get_player_status(self) -> dict | None:
         with self._lock:
+            if self._latest_player_status is None:
+                return None
+            # Status beacon stops when no players are online — if it hasn't
+            # been refreshed recently, treat it as stale (no one online)
+            if time.time() - self._player_status_time > self._STATUS_STALE_SECONDS:
+                return None
             return self._latest_player_status
 
     def drain_and_summarize(self, death_memorial=None, filter_divine: bool = False) -> str | None:

@@ -213,6 +213,12 @@ async def receive_event(event: GameEvent):
     event_data = event.model_dump()
     event_buffer.add(event_data)
 
+    # Log non-status events (status beacon fires every ~30s, too noisy)
+    event_type = event_data.get("type", "?")
+    if event_type != "player_status":
+        logger.info(f"[event] {event_type}" + (
+            f" from {event_data.get('player', '?')}" if event_data.get("player") else ""))
+
     # Record player deaths persistently
     if event_data.get("type") == "entity_die" and event_data.get("isPlayer"):
         death_memorial.record_death(event_data)
@@ -449,16 +455,25 @@ async def _god_tick_inner():
     """Actual tick logic for spontaneous god actions (not prayers).
 
     Prayers are filtered out of the event summary — they're handled
-    separately by the prayer queue.
+    separately by the prayer queue.  Skips entirely when no players
+    are online to avoid wasting LLM calls on weather-only ticks.
     """
     global command_queue
+
+    player_status = event_buffer.get_player_status()
+    if not player_status or not player_status.get("players"):
+        # No one online — drain events silently so they don't pile up
+        discarded = event_buffer.drain_and_summarize(
+            death_memorial=death_memorial, filter_divine=True)
+        if discarded:
+            logger.debug("[tick] Skipped — no players online (discarded buffered events)")
+        return
 
     event_summary = event_buffer.drain_and_summarize(
         death_memorial=death_memorial, filter_divine=True)
     if not event_summary:
         return
 
-    player_status = event_buffer.get_player_status()
     player_context = _build_player_context(player_status)
 
     tick_ts = time.strftime("%H:%M:%S")

@@ -44,9 +44,12 @@ paper/                    - Paper server runtime (not tracked in git)
   plugins/                - built plugin goes here
   server.properties       - server config (spawn-protection=0)
 
+backups/                  - rolling world backups (not tracked in git)
+
 scripts/
   start.sh          - launch both Paper + backend
   stop.sh           - graceful shutdown
+  backup_world.sh   - world backup (stops Paper, tars world, restarts, prunes old)
   schematics/       - GrabCraft → .schem data pipeline
     scrape_grabcraft.py  - scraper + converter + catalog generator
     blockmap_raw.csv     - block name mappings (GrabCraft → minecraft:id)
@@ -146,4 +149,14 @@ cd plugin && mvn package && cp target/minecraft-god-plugin.jar ../paper/plugins/
 3. `systemctl --user restart minecraft-god-backend` (for backend Python changes)
 - Backend restarts are safe without announcement (just a few seconds of god silence)
 - Paper restarts kick all players — always announce first
+
+## World Backups
+- Automated via systemd timer: `minecraft-god-backup.timer` fires at **02:00** and **14:00** daily
+- Script: `scripts/backup_world.sh` — stops Paper, tars `paper/world/`, restarts Paper, prunes old backups
+- Stored in `backups/` as `god-world-YYYY-MM-DD-HHMM.tar.gz` (~40-50MB each)
+- Rolling window: keeps last **6 backups** (3 days), oldest are pruned automatically
+- Paper is stopped during backup (~5 seconds of downtime) for a consistent snapshot
+- Check status: `systemctl --user list-timers | grep backup`
+- Manual backup: `systemctl --user start minecraft-god-backup.service`
+- Restore: stop Paper, extract backup into `paper/`, restart Paper
 
