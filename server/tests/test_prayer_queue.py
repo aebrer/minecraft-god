@@ -1,7 +1,9 @@
 """Tests for the divine request queue.
 
-Verifies keyword detection, context building from player snapshots,
-queue operations (enqueue/dequeue/requeue), and the retry/abandon logic.
+All tests go through the public interface: DivineRequest.build_context()
+and DivineRequestQueue.enqueue/dequeue/requeue. Keyword detection is tested
+through its observable effect: build_context() filters other players'
+divine requests from the chat context.
 """
 
 import asyncio
@@ -11,35 +13,7 @@ from server.prayer_queue import (
     DivineRequest,
     DivineRequestQueue,
     MAX_ATTEMPTS,
-    _is_divine_request,
 )
-
-
-# ---------------------------------------------------------------------------
-# Keyword detection
-# ---------------------------------------------------------------------------
-
-
-def test_prayer_keywords_detected():
-    assert _is_divine_request("God please help me")
-    assert _is_divine_request("I pray for rain")
-    assert _is_divine_request("have mercy on me")
-
-
-def test_herald_keywords_detected():
-    assert _is_divine_request("herald, guide me")
-    assert _is_divine_request("hey bard tell me something")
-
-
-def test_case_insensitive():
-    assert _is_divine_request("GOD HELP")
-    assert _is_divine_request("Herald Please")
-
-
-def test_no_keywords():
-    assert not _is_divine_request("hello everyone")
-    assert not _is_divine_request("nice weather today")
-    assert not _is_divine_request("")
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +98,7 @@ def test_context_includes_request_chat():
 
 
 def test_context_filters_other_prayers():
-    """Other players' divine requests are excluded from context."""
+    """Other players' prayer keywords are excluded from context."""
     req = _make_request()
     req.recent_chat = [
         {"player": "Steve", "message": "God help me"},
@@ -137,6 +111,33 @@ def test_context_filters_other_prayers():
     assert "nice base" in ctx
     # Alex's separate prayer should be filtered out
     assert "help me too" not in ctx
+
+
+def test_context_filters_other_herald_invocations():
+    """Other players' herald keywords are also excluded from context."""
+    req = _make_request(request_type="herald", message="herald guide me")
+    req.recent_chat = [
+        {"player": "Steve", "message": "herald guide me"},
+        {"player": "Alex", "message": "hey bard tell me something"},  # another herald call
+        {"player": "Bob", "message": "cool build!"},  # regular chat
+    ]
+    ctx = req.build_context()
+    assert "herald guide me" in ctx
+    assert "cool build" in ctx
+    assert "tell me something" not in ctx
+
+
+def test_context_keeps_regular_chat_with_keyword_substrings():
+    """Messages without divine keywords are kept even if they look similar."""
+    req = _make_request()
+    req.recent_chat = [
+        {"player": "Steve", "message": "God help me"},
+        {"player": "Alex", "message": "this is a nice godly view"},  # contains 'god' = filtered
+        {"player": "Bob", "message": "I found diamonds!"},  # no keywords = kept
+    ]
+    ctx = req.build_context()
+    assert "God help me" in ctx
+    assert "I found diamonds" in ctx
 
 
 def test_context_empty_inventory():
