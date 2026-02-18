@@ -238,6 +238,85 @@ def _make_tellraw(message: str, target: str = "@a",
     return {"command": f"tellraw {target} {text_json}"}
 
 
+# Mapping from acting_god key to GOD_CHAT_STYLE key
+_GOD_STYLE_KEY = {
+    "kind": "kind_god",
+    "deep": "deep_god",
+    "herald": "herald",
+    "dig": "dig_god",
+}
+
+
+def _filter_thinking_lines(text: str) -> list[str]:
+    """Filter god thinking text for in-game display.
+
+    Strips JSON blobs, minecraft commands, and markdown artifacts.
+    Returns a list of clean lines suitable for tellraw.
+    """
+    # Skip entirely if the whole text is JSON
+    stripped = text.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        try:
+            json.loads(stripped)
+            return []
+        except (json.JSONDecodeError, ValueError):
+            pass
+    # Also skip fenced JSON code blocks
+    if stripped.startswith("```"):
+        return []
+
+    lines = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        # Skip lines that look like minecraft commands
+        if line.startswith("/") or line.startswith("tellraw ") or line.startswith("effect "):
+            continue
+        # Skip lines that look like JSON fragments
+        if line.startswith("{") or line.startswith("["):
+            try:
+                json.loads(line)
+                continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+        # Strip markdown formatting for chat display
+        cleaned = line.replace("**", "").replace("*", "").replace("`", "")
+        if cleaned:
+            lines.append(cleaned)
+    return lines
+
+
+def _make_thinking_callback(god_key: str) -> callable:
+    """Create a callback that broadcasts god thinking text to all players.
+
+    The callback filters the text and immediately appends tellraw commands
+    to the command queue, so players see thinking in real-time (especially
+    useful for Kind God's multi-turn deliberation).
+    """
+    from server.commands import GOD_CHAT_STYLE, _wrap_message_lines
+    style_key = _GOD_STYLE_KEY.get(god_key)
+    style = GOD_CHAT_STYLE.get(style_key, {"name": god_key, "color": "gray"})
+    god_name = style["name"]
+    color = style["color"]
+
+    def on_thinking(text: str):
+        lines = _filter_thinking_lines(text)
+        if not lines:
+            return
+        # Header: "The Kind God thinks:" in bold
+        header = json.dumps([{"text": f"{god_name} thinks:", "color": color,
+                              "bold": True, "italic": True}])
+        command_queue.append({"command": f"tellraw @a {header}"})
+        # Each line as a separate tellraw, word-wrapped for chat width
+        for line in lines:
+            for wrapped in _wrap_message_lines(line):
+                line_json = json.dumps([{"text": f"  {wrapped}", "color": color, "italic": True}])
+                command_queue.append({"command": f"tellraw @a {line_json}"})
+
+    return on_thinking
+
+
 def _god_failure_commands(god_name: str, target: str = "@a") -> list[dict]:
     """Generate in-game feedback commands when a god's LLM call fails."""
     messages = {
@@ -579,7 +658,8 @@ async def _process_divine_request(request: DivineRequest):
         # Herald invocations go directly to the Herald
         acting_god = "herald"
         logger.info(f"[herald] === THE HERALD SPEAKS ===")
-        commands = await herald_god.think(event_summary)
+        commands = await herald_god.think(event_summary,
+                                         on_thinking=_make_thinking_callback("herald"))
 
         if commands is None:
             _recent_logs.append({"time": tick_ts, "god": "herald", "action": "herald_error",
@@ -594,7 +674,8 @@ async def _process_divine_request(request: DivineRequest):
         acting_god = "dig"
         logger.info(f"[dig] === THE GOD OF DIGGING AWAKENS ===")
         commands = await dig_god.think(event_summary, player_context=player_context,
-                                       requesting_player=request.player)
+                                       requesting_player=request.player,
+                                       on_thinking=_make_thinking_callback("dig"))
 
         if commands is None:
             _recent_logs.append({"time": tick_ts, "god": "dig", "action": "dig_error",
@@ -613,6 +694,16 @@ async def _process_divine_request(request: DivineRequest):
                 original_player = sentinel.get("player", request.player)
                 synth_msg = sentinel.get("message", request.message)
                 logger.info(f"[dig] Dig God redirecting to Kind God on behalf of {original_player}: {synth_msg}")
+                # Show the inter-god handoff in chat so players can see it
+                from server.commands import _wrap_message_lines
+                forward_header = json.dumps([
+                    {"text": "The God of Digging ", "color": "dark_aqua", "bold": True},
+                    {"text": "forwards to The Kind God:", "color": "dark_aqua", "italic": True},
+                ])
+                command_queue.append({"command": f"tellraw @a {forward_header}"})
+                for fwd_line in _wrap_message_lines(synth_msg):
+                    fwd_json = json.dumps([{"text": f"  {fwd_line}", "color": "gray", "italic": True}])
+                    command_queue.append({"command": f"tellraw @a {fwd_json}"})
                 # The prayer arrives at Kind God as sent by the dig god,
                 # but player field stays as the original player so Kind God
                 # targets them with effects/responses. The chat history shows
@@ -645,7 +736,8 @@ async def _process_divine_request(request: DivineRequest):
             command_queue.append(_make_tellraw(intercept_msg, target=intercept_target))
             logger.info(f"[prayer] Interception message to {intercept_target}: {intercept_msg}")
 
-            commands = await deep_god.think(event_summary)
+            commands = await deep_god.think(event_summary,
+                                           on_thinking=_make_thinking_callback("deep"))
 
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "deep", "action": "prayer_error",
@@ -660,7 +752,8 @@ async def _process_divine_request(request: DivineRequest):
             kind_god.reset_action_count()
         else:
             commands = await kind_god.think(event_summary, player_context=player_context,
-                                           requesting_player=request.player)
+                                           requesting_player=request.player,
+                                           on_thinking=_make_thinking_callback("kind"))
 
             if commands is None:
                 _recent_logs.append({"time": tick_ts, "god": "kind", "action": "prayer_error",
@@ -709,7 +802,8 @@ async def _process_divine_request(request: DivineRequest):
     # that would double-trigger)
     if rt == "prayer" and herald_god.should_act(event_summary):
         logger.info("[prayer] === THE HERALD ALSO SPEAKS ===")
-        herald_commands = await herald_god.think(event_summary)
+        herald_commands = await herald_god.think(event_summary,
+                                                on_thinking=_make_thinking_callback("herald"))
         if herald_commands is None:
             command_queue.extend(_god_failure_commands("herald"))
         elif herald_commands:
@@ -828,7 +922,8 @@ async def _god_tick_inner():
         acting_god = "deep"
         logger.info("[tick] === THE DEEP GOD STIRS ===")
 
-        commands = await deep_god.think(event_summary)
+        commands = await deep_god.think(event_summary,
+                                       on_thinking=_make_thinking_callback("deep"))
 
         if commands is None:
             command_queue.extend(_god_failure_commands("deep"))
@@ -839,7 +934,8 @@ async def _god_tick_inner():
         kind_god.notify_deep_god_acted()
         kind_god.reset_action_count()
     else:
-        commands = await kind_god.think(event_summary, player_context=player_context)
+        commands = await kind_god.think(event_summary, player_context=player_context,
+                                       on_thinking=_make_thinking_callback("kind"))
 
         if commands is None:
             command_queue.extend(_god_failure_commands("kind"))
@@ -869,7 +965,8 @@ async def _god_tick_inner():
     # The Herald speaks independently — not silenced by either god
     if herald_god.should_act(event_summary):
         logger.info("[tick] === THE HERALD SPEAKS ===")
-        herald_commands = await herald_god.think(event_summary)
+        herald_commands = await herald_god.think(event_summary,
+                                                on_thinking=_make_thinking_callback("herald"))
 
         if herald_commands is None:
             command_queue.extend(_god_failure_commands("herald"))

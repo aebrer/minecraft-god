@@ -386,10 +386,12 @@ class KindGod:
         self.action_count: int = 0  # tracks interventions for Deep God trigger
         self.memory = KindGodMemory(MEMORY_FILE)
         self.last_error: str | None = None
+        self.last_thinking: str | None = None
         self._deep_god_acted: bool = False
 
     async def think(self, event_summary: str, player_context: dict | None = None,
-                    requesting_player: str | None = None) -> list[dict]:
+                    requesting_player: str | None = None,
+                    on_thinking: callable = None) -> list[dict]:
         """Process events and return Minecraft commands.
 
         Each call starts with a fresh LLM context — no persistent conversation
@@ -439,6 +441,9 @@ class KindGod:
 
             if message.content:
                 logger.info(f"[Kind God thinks] {message.content}")
+                self.last_thinking = message.content
+                if on_thinking:
+                    on_thinking(message.content)
 
             if not message.tool_calls:
                 # No tool calls — record response

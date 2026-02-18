@@ -212,10 +212,12 @@ class DigGod:
     def __init__(self):
         self.memory = DigMemory(DIG_MEMORY_FILE, max_entries=DIG_MEMORY_MAX_ENTRIES)
         self.last_error: str | None = None
+        self.last_thinking: str | None = None
         self.action_count: int = 0
 
     async def think(self, event_summary: str, player_context: dict | None = None,
-                    requesting_player: str | None = None) -> list[dict] | None:
+                    requesting_player: str | None = None,
+                    on_thinking: callable = None) -> list[dict] | None:
         """Process a dig request and return Minecraft commands.
 
         Two-turn flow:
@@ -249,6 +251,9 @@ class DigGod:
 
         if message.content:
             logger.info(f"[Dig God thinks] {message.content}")
+            self.last_thinking = message.content
+            if on_thinking:
+                on_thinking(message.content)
 
         # Check if LLM used tool_calls (non-dig action)
         if message.tool_calls:
