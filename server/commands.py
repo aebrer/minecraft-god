@@ -22,6 +22,7 @@ GOD_CHAT_STYLE = {
     "kind_god": {"name": "The Kind God", "color": "gold"},
     "deep_god": {"name": "???", "color": "dark_red"},
     "herald": {"name": "The Herald", "color": "green"},
+    "dig_god": {"name": "The God of Digging", "color": "dark_aqua"},
 }
 
 # Dangerous items that must never be given to players

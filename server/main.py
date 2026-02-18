@@ -21,6 +21,7 @@ from server.events import EventBuffer
 from server.kind_god import KindGod
 from server.deep_god import DeepGod
 from server.herald_god import HeraldGod
+from server.dig_god import DigGod
 from server.deaths import DeathMemorial
 from server.prayer_queue import DivineRequest, DivineRequestQueue, MAX_ATTEMPTS, classify_divine_request
 
@@ -42,6 +43,7 @@ command_queue: list[dict] = []
 kind_god = KindGod()
 deep_god = DeepGod()
 herald_god = HeraldGod()
+dig_god = DigGod()
 death_memorial = DeathMemorial()
 prayer_queue = DivineRequestQueue()
 _tick_task: asyncio.Task | None = None
@@ -104,6 +106,10 @@ def _summarize_commands(commands: list[dict]) -> str:
     for c in commands:
         if c.get("type") == "build_schematic":
             parts.append(f"build_schematic({c.get('blueprint_id')})")
+        elif c.get("type", "").startswith("dig_"):
+            parts.append(f"{c['type']}(near {c.get('near_player', '?')})")
+        elif c.get("type") == "pray_to_kind_god":
+            parts.append(f"pray_to_kind_god(for {c.get('player', '?')})")
         else:
             cmd = c.get("command", "?")
             # Extract the meaningful part of tellraw commands
@@ -184,10 +190,19 @@ _SILENCE_HERALD = [
     "Silence from the Herald. Not every moment deserves a verse.",
 ]
 
+_SILENCE_DIG = [
+    "The God of Digging peers at your request... and puts down the shovel. Not today.",
+    "A distant rumbling. Then nothing. The earth remains unbroken.",
+    "The God of Digging considers your words, but finds no hole worth digging.",
+    "Silence from below. Even the God of Digging has standards.",
+    "The God of Digging yawns. Your request lacks... depth.",
+]
+
 _SILENCE_POOLS = {
     "kind": _SILENCE_KIND,
     "deep": _SILENCE_DEEP,
     "herald": _SILENCE_HERALD,
+    "dig": _SILENCE_DIG,
 }
 
 
@@ -229,6 +244,7 @@ def _god_failure_commands(god_name: str, target: str = "@a") -> list[dict]:
         "kind": "The Kind God stirs, but cannot speak. Something is wrong.",
         "deep": "The deep rumbles, but forms no words. An error in the stone.",
         "herald": "The Herald opens their mouth, but silence falls. The verse is lost.",
+        "dig": "The God of Digging raises a shovel... and drops it. Something went wrong.",
     }
     msg = messages.get(god_name, f"A divine presence falters. ({god_name} error)")
     return [
@@ -306,8 +322,9 @@ async def lifespan(app: FastAPI):
                 pass
     # Flush state to disk on shutdown
     kind_god.memory._save()
+    dig_god.memory._save()
     _save_consolidation_log()
-    logger.info("Kind God memory and activity log saved")
+    logger.info("God memories and activity log saved")
 
 
 app = FastAPI(title="minecraft-god", lifespan=lifespan)
@@ -358,8 +375,8 @@ async def receive_event(event: GameEvent):
                 pos = f" at ({loc.get('x', '?')}, {loc.get('y', '?')}, {loc.get('z', '?')})" if loc else ""
                 _log_activity(f'REMEMBER: {player_name}{pos}: "{message}"')
             else:
-                label = "PRAYER" if request_type == "prayer" else "HERALD REQUEST"
-                _log_activity(f'{label}: {player_name}: "{message}"')
+                label = {"prayer": "PRAYER", "herald": "HERALD REQUEST", "dig": "DIG REQUEST"}
+                _log_activity(f'{label.get(request_type, request_type.upper())}: {player_name}: "{message}"')
 
             # Use the inline snapshot from the chat event (built on the plugin's
             # main thread at the moment the player spoke — always fresh)
@@ -416,6 +433,8 @@ async def get_status():
         "kind_god_memory_count": len(kind_god.memory.memories),
         "last_consolidation_ago": f"{secs_since:.0f}s" if secs_since != float("inf") else "never",
         "next_consolidation_in": f"{max(0, MEMORY_CONSOLIDATION_INTERVAL_SECONDS - secs_since):.0f}s",
+        "dig_god_memory_count": len(dig_god.memory.records),
+        "dig_god_action_count": dig_god.action_count,
         "player_status": event_buffer.get_player_status(),
         "death_records": {p: len(d) for p, d in death_memorial.deaths.items()},
     }
@@ -570,6 +589,47 @@ async def _process_divine_request(request: DivineRequest):
             logger.warning(f"[herald] Herald failed for {request.player} "
                            f"(attempt {request.attempts}/{MAX_ATTEMPTS})")
             return
+    elif rt == "dig":
+        # Dig requests go directly to the God of Digging
+        acting_god = "dig"
+        logger.info(f"[dig] === THE GOD OF DIGGING AWAKENS ===")
+        commands = await dig_god.think(event_summary, player_context=player_context,
+                                       requesting_player=request.player)
+
+        if commands is None:
+            _recent_logs.append({"time": tick_ts, "god": "dig", "action": "dig_error",
+                                 "error": dig_god.last_error, "player": request.player})
+            if not prayer_queue.requeue(request):
+                command_queue.extend(_prayer_abandoned_commands(request.player))
+            logger.warning(f"[dig] Dig God failed for {request.player} "
+                           f"(attempt {request.attempts}/{MAX_ATTEMPTS})")
+            return
+
+        # Handle pray_to_kind_god sentinels — filter them out and inject synthetic prayers
+        pray_sentinels = [c for c in commands if c.get("type") == "pray_to_kind_god"]
+        if pray_sentinels:
+            commands = [c for c in commands if c.get("type") != "pray_to_kind_god"]
+            for sentinel in pray_sentinels:
+                original_player = sentinel.get("player", request.player)
+                synth_msg = sentinel.get("message", request.message)
+                logger.info(f"[dig] Dig God redirecting to Kind God on behalf of {original_player}: {synth_msg}")
+                # The prayer arrives at Kind God as sent by the dig god,
+                # but player field stays as the original player so Kind God
+                # targets them with effects/responses. The chat history shows
+                # the dig god as the sender so Kind God knows the source.
+                dig_god_chat = list(request.recent_chat) + [
+                    {"player": "The God of Digging",
+                     "message": f"(on behalf of {original_player}) {synth_msg}"}
+                ]
+                synth_request = DivineRequest(
+                    player=original_player,
+                    message=f"[The God of Digging, on behalf of {original_player}]: {synth_msg}",
+                    request_type="prayer",
+                    timestamp=time.time(),
+                    player_snapshot=request.player_snapshot,
+                    recent_chat=dig_god_chat,
+                )
+                prayer_queue.enqueue(synth_request)
     else:
         # Prayers route through Deep God trigger logic
         acting_god = "kind"
@@ -617,28 +677,32 @@ async def _process_divine_request(request: DivineRequest):
         for c in commands:
             if c.get("type") == "build_schematic":
                 cmd_summaries.append(f"build_schematic({c.get('blueprint_id')} @ {c.get('x')},{c.get('y')},{c.get('z')})")
+            elif c.get("type", "").startswith("dig_"):
+                cmd_summaries.append(f"{c['type']}(near {c.get('near_player', '?')})")
             else:
                 cmd_summaries.append(c.get("command", "?")[:80])
         logger.info(f"[{rt}] Answered {request.player}: {len(commands)} commands queued")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": f"{rt}_answered",
                              "commands": cmd_summaries, "player": request.player,
                              "context": event_summary})
-        # Activity log — record god response to prayer/herald
-        god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald"}[acting_god]
+        # Activity log — record god response
+        god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald",
+                     "dig": "God of Digging"}[acting_god]
         _log_activity(f"{god_label} answered {request.player}'s {rt}: {_summarize_commands(commands)}")
     else:
         logger.info(f"[{rt}] {acting_god} god was silent for {request.player}'s {rt}")
         _recent_logs.append({"time": tick_ts, "god": acting_god, "action": f"{rt}_silent",
                              "player": request.player, "context": event_summary})
-        # Send in-game feedback so the player knows their prayer was heard but unanswered
-        if rt in ("prayer", "herald"):
+        # Send in-game feedback so the player knows their request was heard but unanswered
+        if rt in ("prayer", "herald", "dig"):
             silence_pool = _SILENCE_POOLS.get(acting_god, _SILENCE_KIND)
             silence_msg = random.choice(silence_pool)
             command_queue.append(
                 _make_tellraw(silence_msg, target=request.player,
                               color="gray", italic=True)
             )
-            god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald"}[acting_god]
+            god_label = {"kind": "Kind God", "deep": "Deep God", "herald": "Herald",
+                         "dig": "God of Digging"}[acting_god]
             _log_activity(f"{god_label} was silent for {request.player}'s {rt}")
 
     # Herald can also respond to prayers independently (but not to herald invocations —
