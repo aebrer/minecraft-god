@@ -205,6 +205,12 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
             "tellraw " + name + " [{\"text\":\"♫ The Herald\",\"color\":\"green\",\"bold\":true},{\"text\":\" — a poetic guide who speaks in verse.\",\"color\":\"gray\"}]",
             "tellraw " + name + " [{\"text\":\"  Summon by saying \",\"color\":\"gray\"},{\"text\":\"herald\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"bard\",\"color\":\"aqua\"},{\"text\":\", or \",\"color\":\"gray\"},{\"text\":\"guide\",\"color\":\"aqua\"},{\"text\":\" in chat. Gives practical Minecraft advice.\",\"color\":\"gray\"}]",
 
+            // God of Digging
+            "tellraw " + name + " \"\"",
+            "tellraw " + name + " [{\"text\":\"⛏ The God of Digging\",\"color\":\"dark_aqua\",\"bold\":true},{\"text\":\" — an enthusiastic deity devoted to excavation.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Summon by saying \",\"color\":\"gray\"},{\"text\":\"dig\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"hole\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"tunnel\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"excavate\",\"color\":\"aqua\"},{\"text\":\", \",\"color\":\"gray\"},{\"text\":\"shaft\",\"color\":\"aqua\"},{\"text\":\", or \",\"color\":\"gray\"},{\"text\":\"staircase\",\"color\":\"aqua\"},{\"text\":\" in chat.\",\"color\":\"gray\"}]",
+            "tellraw " + name + " [{\"text\":\"  Can dig holes, tunnels, shafts, and staircases with actual stair blocks.\",\"color\":\"gray\"}]",
+
             // Tips
             "tellraw " + name + " \"\"",
             "tellraw " + name + " [{\"text\":\"Tips:\",\"color\":\"white\",\"bold\":true}]",
@@ -615,6 +621,11 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                 getLogger().info("Undo result: " + result);
                 return;
             }
+            if (type.startsWith("dig_")) {
+                getLogger().info("Executing " + type + ": " + cmd);
+                executeDigCommand(cmd);
+                return;
+            }
         }
 
         String command = cmd.get("command").getAsString();
@@ -902,6 +913,255 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
                                 + originX + " " + originY + " " + originZ + " 2 1");
             }
         }
+    }
+
+    // ─── Dig Commands ──────────────────────────────────────────────────────────
+
+    /** Direction offsets: (dx, dz) per cardinal. */
+    private static final Map<String, int[]> CARDINAL_OFFSETS = Map.of(
+            "N", new int[]{0, -1}, "S", new int[]{0, 1},
+            "E", new int[]{1, 0},  "W", new int[]{-1, 0}
+    );
+
+    /**
+     * Execute a dig command (dig_hole, dig_tunnel, dig_staircase, dig_shaft).
+     * Computes the dig volume from the command params and clears/places blocks instantly.
+     */
+    private void executeDigCommand(JsonObject cmd) {
+        try {
+            executeDigCommandInner(cmd);
+        } catch (Exception e) {
+            getLogger().severe("Dig command failed: " + e.getMessage());
+            getLogger().severe("Command was: " + cmd.toString().substring(0, Math.min(cmd.toString().length(), 200)));
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                    "tellraw @a [{\"text\":\"The God of Digging's excavation crumbled! Something went wrong.\",\"color\":\"red\"}]");
+        }
+    }
+
+    private void executeDigCommandInner(JsonObject cmd) {
+        String type = cmd.get("type").getAsString();
+        int px = cmd.get("player_x").getAsInt();
+        int py = cmd.get("player_y").getAsInt();
+        int pz = cmd.get("player_z").getAsInt();
+        String facing = cmd.has("player_facing") ? cmd.get("player_facing").getAsString() : "N";
+
+        World world = Bukkit.getWorlds().get(0); // overworld
+
+        // Compute offset direction: use player's facing to place dig "in front"
+        int[] fwd = facingToCardinal(facing);
+        int fdx = fwd[0], fdz = fwd[1];
+
+        List<BlockPlacement> originalBlocks = new ArrayList<>();
+        int cleared = 0;
+
+        switch (type) {
+            case "dig_hole" -> {
+                int width = cmd.get("width").getAsInt();
+                int depth = cmd.get("depth").getAsInt();
+                // Center the hole in front of the player, 2 blocks forward
+                int cx = px + fdx * (width / 2 + 2);
+                int cz = pz + fdz * (width / 2 + 2);
+                int halfW = width / 2;
+
+                // Snapshot and clear
+                for (int dy = 0; dy < depth; dy++) {
+                    for (int dx = -halfW; dx < -halfW + width; dx++) {
+                        for (int dz = -halfW; dz < -halfW + width; dz++) {
+                            int bx = cx + dx, by = py - dy, bz = cz + dz;
+                            Block block = world.getBlockAt(bx, by, bz);
+                            originalBlocks.add(new BlockPlacement(bx, by, bz, block.getBlockData().getAsString()));
+                            if (!block.getType().isAir() && !isProtectedBlock(block.getType())) {
+                                block.setType(Material.AIR, false);
+                                cleared++;
+                            }
+                        }
+                    }
+                }
+                getLogger().info("dig_hole: cleared " + cleared + " blocks (" + width + "x" + depth
+                        + ") at center " + cx + "," + py + "," + cz);
+            }
+            case "dig_tunnel" -> {
+                int width = cmd.get("width").getAsInt();
+                int height = cmd.get("height").getAsInt();
+                int length = cmd.get("length").getAsInt();
+                String dir = cmd.get("direction").getAsString();
+                int[] dirOff = CARDINAL_OFFSETS.getOrDefault(dir, new int[]{0, -1});
+                int ddx = dirOff[0], ddz = dirOff[1];
+
+                // Start 2 blocks in front of player
+                int startX = px + fdx * 2;
+                int startZ = pz + fdz * 2;
+                // Width is perpendicular to the tunnel direction
+                int perpX = -ddz; // perpendicular: rotate 90 degrees
+                int perpZ = ddx;
+                int halfW = width / 2;
+
+                for (int l = 0; l < length; l++) {
+                    for (int h = 0; h < height; h++) {
+                        for (int w = -halfW; w < -halfW + width; w++) {
+                            int bx = startX + ddx * l + perpX * w;
+                            int by = py + h;
+                            int bz = startZ + ddz * l + perpZ * w;
+                            Block block = world.getBlockAt(bx, by, bz);
+                            originalBlocks.add(new BlockPlacement(bx, by, bz, block.getBlockData().getAsString()));
+                            if (!block.getType().isAir() && !isProtectedBlock(block.getType())) {
+                                block.setType(Material.AIR, false);
+                                cleared++;
+                            }
+                        }
+                    }
+                }
+                getLogger().info("dig_tunnel: cleared " + cleared + " blocks (" + width + "x" + height
+                        + "x" + length + " " + dir + ")");
+            }
+            case "dig_staircase" -> {
+                int width = cmd.get("width").getAsInt();
+                int steps = cmd.get("steps").getAsInt();
+                String dir = cmd.get("direction").getAsString();
+                String going = cmd.get("going").getAsString();
+                int[] dirOff = CARDINAL_OFFSETS.getOrDefault(dir, new int[]{0, -1});
+                int ddx = dirOff[0], ddz = dirOff[1];
+                boolean goingDown = "down".equals(going);
+
+                int startX = px + fdx * 2;
+                int startZ = pz + fdz * 2;
+                int perpX = -ddz;
+                int perpZ = ddx;
+                int halfW = width / 2;
+
+                // Two passes: clear first, then place stairs (otherwise each step's
+                // clearing phase destroys the previous step's stair block)
+
+                // Pass 1: snapshot and clear all blocks
+                for (int s = 0; s < steps; s++) {
+                    int stepY = goingDown ? py - s : py + s;
+                    for (int w = -halfW; w < -halfW + width; w++) {
+                        int bx = startX + ddx * s + perpX * w;
+                        int bz = startZ + ddz * s + perpZ * w;
+
+                        // Clear 5 blocks: the stair level + 4 above for headroom
+                        // (needs extra clearance because diagonal terrain from
+                        // adjacent steps intrudes into the walkable space)
+                        for (int h = 0; h < 5; h++) {
+                            int by = stepY + h;
+                            Block block = world.getBlockAt(bx, by, bz);
+                            originalBlocks.add(new BlockPlacement(bx, by, bz, block.getBlockData().getAsString()));
+                            if (!block.getType().isAir() && !isProtectedBlock(block.getType())) {
+                                block.setType(Material.AIR, false);
+                                cleared++;
+                            }
+                        }
+                    }
+                }
+
+                // Pass 2: place stair blocks
+                String stairFacing = stairBlockFacing(dir, goingDown);
+                for (int s = 0; s < steps; s++) {
+                    int stepY = goingDown ? py - s : py + s;
+                    for (int w = -halfW; w < -halfW + width; w++) {
+                        int bx = startX + ddx * s + perpX * w;
+                        int bz = startZ + ddz * s + perpZ * w;
+                        try {
+                            Block stairBlock = world.getBlockAt(bx, stepY, bz);
+                            BlockData stairData = Bukkit.createBlockData(
+                                    "minecraft:stone_stairs[facing=" + stairFacing
+                                    + ",half=bottom,shape=straight]");
+                            stairBlock.setBlockData(stairData, false);
+                        } catch (Exception e) {
+                            getLogger().warning("Failed to place stair at " + bx + "," + stepY + "," + bz
+                                    + ": " + e.getMessage());
+                        }
+                    }
+                }
+                getLogger().info("dig_staircase: cleared " + cleared + " blocks, placed " + (steps * width)
+                        + " stairs (" + width + "w " + steps + " steps " + dir + " " + going + ")");
+            }
+            case "dig_shaft" -> {
+                int width = cmd.get("width").getAsInt();
+                int length = cmd.get("length").getAsInt();
+                String going = cmd.get("going").getAsString();
+                boolean goingDown = "down".equals(going);
+
+                // Center on player position
+                int halfW = width / 2;
+                for (int l = 0; l < length; l++) {
+                    int by = goingDown ? py - l : py + l;
+                    for (int dx = -halfW; dx < -halfW + width; dx++) {
+                        for (int dz = -halfW; dz < -halfW + width; dz++) {
+                            int bx = px + dx;
+                            int bz = pz + dz;
+                            Block block = world.getBlockAt(bx, by, bz);
+                            originalBlocks.add(new BlockPlacement(bx, by, bz, block.getBlockData().getAsString()));
+                            if (!block.getType().isAir() && !isProtectedBlock(block.getType())) {
+                                block.setType(Material.AIR, false);
+                                cleared++;
+                            }
+                        }
+                    }
+                }
+                getLogger().info("dig_shaft: cleared " + cleared + " blocks (" + width + "x" + width
+                        + "x" + length + " " + going + ")");
+            }
+            default -> {
+                getLogger().warning("Unknown dig type: " + type);
+                return;
+            }
+        }
+
+        // Push to undo history (shared with schematic builds)
+        String blueprintId = type; // e.g. "dig_hole"
+        synchronized (buildHistory) {
+            if (buildHistory.size() >= MAX_UNDO_HISTORY) {
+                buildHistory.removeLast();
+            }
+            buildHistory.push(new BuildSnapshot(blueprintId, world, originalBlocks, System.currentTimeMillis()));
+        }
+        getLogger().info(type + ": saved undo snapshot (" + originalBlocks.size() + " blocks)");
+
+        // Visual effects (no lightning — it sets things on fire)
+        world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, px + 0.5, py + 0.5, pz + 0.5,
+                30, 2, 2, 2, 0.01);
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                "playsound minecraft:entity.warden.emerge master @a " + px + " " + py + " " + pz + " 2 0.6");
+    }
+
+    /**
+     * Convert a player's facing direction (including diagonals) to the nearest cardinal.
+     * Returns {dx, dz} offset for that cardinal.
+     */
+    private static int[] facingToCardinal(String facing) {
+        return switch (facing.toUpperCase()) {
+            case "N", "NE", "NW" -> new int[]{0, -1};
+            case "S", "SE", "SW" -> new int[]{0, 1};
+            case "E" -> new int[]{1, 0};
+            case "W" -> new int[]{-1, 0};
+            default -> new int[]{0, -1}; // default north
+        };
+    }
+
+    /**
+     * Get the stair block "facing" property for stairs going in a direction.
+     * Stairs face TOWARD the higher end (the direction you climb FROM).
+     */
+    private static String stairBlockFacing(String direction, boolean goingDown) {
+        // When going down in direction D, stairs face opposite of D (you descend into them)
+        // When going up in direction D, stairs face D (you ascend into them)
+        String facingDir = goingDown ? oppositeDirection(direction) : direction;
+        return switch (facingDir) {
+            case "N" -> "north";
+            case "S" -> "south";
+            case "E" -> "east";
+            case "W" -> "west";
+            default -> "north";
+        };
+    }
+
+    private static String oppositeDirection(String dir) {
+        return switch (dir) {
+            case "N" -> "S"; case "S" -> "N";
+            case "E" -> "W"; case "W" -> "E";
+            default -> "N";
+        };
     }
 
     // ─── Build Undo ─────────────────────────────────────────────────────────────

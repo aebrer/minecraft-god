@@ -41,5 +41,19 @@ PRAYER_KEYWORDS = {"god", "please", "help", "pray", "prayer", "mercy", "save", "
 # Herald keywords — trigger the Herald, NOT the Kind God
 HERALD_KEYWORDS = {"herald", "bard", "guide"}
 
+# Dig God keywords — trigger the God of Digging, NOT the Kind God
+DIG_KEYWORDS = {"dig", "hole", "tunnel", "excavate", "shaft", "staircase"}
+
 # Remember keywords — trigger player-initiated memory consolidation
 REMEMBER_KEYWORDS = {"remember"}
+
+# Dig God size caps (per dimension)
+DIG_MAX_WIDTH = 32
+DIG_MAX_DEPTH = 64
+DIG_MAX_LENGTH = 64
+DIG_MAX_HEIGHT = 16
+DIG_MAX_STEPS = 64
+
+# Dig God memory
+DIG_MEMORY_FILE = MEMORY_DIR / "dig_god_memory.json"
+DIG_MEMORY_MAX_ENTRIES = 15

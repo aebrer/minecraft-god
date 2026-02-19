@@ -6,6 +6,7 @@ Does not hate humans — barely notices them until they dig.
 
 import logging
 import random
+from collections.abc import Callable
 
 from server.config import (
     DEEP_GOD_DEEP_MINING_CHANCE,
@@ -190,6 +191,7 @@ DEEP_ORES = {
 class DeepGod:
     def __init__(self):
         self.last_error: str | None = None
+        self.last_thinking: str | None = None
 
     def should_act(self, event_summary: str | None, player_status: dict | None,
                    kind_god_action_count: int, praying_player: str | None = None) -> bool:
@@ -265,7 +267,8 @@ class DeepGod:
 
         return False
 
-    async def think(self, event_summary: str) -> list[dict]:
+    async def think(self, event_summary: str,
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict]:
         """Process events and return Minecraft commands.
 
         Single-turn: fresh context each call, no persistent history.
@@ -297,6 +300,9 @@ class DeepGod:
 
         if message.content:
             logger.info(f"[Deep God thinks] {message.content}")
+            self.last_thinking = message.content
+            if on_thinking:
+                on_thinking(message.content)
 
         commands = []
         if message.tool_calls:

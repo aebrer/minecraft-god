@@ -22,6 +22,7 @@ GOD_CHAT_STYLE = {
     "kind_god": {"name": "The Kind God", "color": "gold"},
     "deep_god": {"name": "???", "color": "dark_red"},
     "herald": {"name": "The Herald", "color": "green"},
+    "dig_god": {"name": "The God of Digging", "color": "dark_aqua"},
 }
 
 # Dangerous items that must never be given to players
@@ -71,7 +72,7 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
         - commands: list of command dicts (with "command" or "type" key)
         - errors: dict mapping tool_call_id -> error message for failed calls
 
-    source: which god is speaking ("kind_god", "deep_god", "herald")
+    source: which god is speaking ("kind_god", "deep_god", "herald", "dig_god")
     player_context: dict mapping player names (lowercase) to their position/facing data,
         used for resolving build_schematic placement. Each entry has:
         {"x": int, "y": int, "z": int, "facing": str}
@@ -230,44 +231,91 @@ def _cmd(command: str, target_player: str | None = None) -> dict | None:
     return {"command": command, "target_player": target_player}
 
 
+# Max chars per chat line — Minecraft chat is ~58 chars wide but the god name
+# prefix takes ~20 chars, so we wrap message text at ~50 chars.  Only the first
+# line gets the god name prefix; continuation lines are indented.
+_CHAT_LINE_WIDTH = 50
+
+
+def _wrap_message_lines(text: str, width: int = _CHAT_LINE_WIDTH) -> list[str]:
+    """Split a message into chat-friendly lines.
+
+    Splits on newlines first (preserving the god's paragraph structure),
+    then word-wraps long lines within each paragraph.
+    """
+    lines = []
+    for paragraph in text.split("\n"):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        # Word-wrap long paragraphs
+        while len(paragraph) > width:
+            # Find last space within width
+            split_at = paragraph.rfind(" ", 0, width)
+            if split_at == -1:
+                split_at = width  # no space found, hard-break
+            lines.append(paragraph[:split_at].rstrip())
+            paragraph = paragraph[split_at:].lstrip()
+        if paragraph:
+            lines.append(paragraph)
+    return lines
+
+
 def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | None:
     message = args.get("message", "")
     target = args.get("target_player")
-
-    # All messages go through tellraw (chat) so they're retained in chat history.
-    # The "style" parameter is accepted but no longer affects delivery method.
-    message = message.replace("\n", " ").strip()[:200]
 
     god_style = GOD_CHAT_STYLE.get(source, {"name": "God", "color": "white"})
     if target and not _validate_player_target(target):
         return None
 
+    lines = _wrap_message_lines(message)[:10]  # cap to prevent chat flooding
+    if not lines:
+        return None
+
     if target:
-        # Private message — send actual message to target, notification to everyone else
-        whisper_json = json.dumps([
-            {"text": "[whispered] ", "color": "gray", "italic": True},
-            {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
-            {"text": message, "color": "white"},
-        ])
+        # Private message — first line gets the god prefix, rest are continuation
+        cmds = []
+        for i, line in enumerate(lines):
+            if i == 0:
+                whisper_json = json.dumps([
+                    {"text": "[whispered] ", "color": "gray", "italic": True},
+                    {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+                    {"text": line, "color": "white"},
+                ])
+            else:
+                whisper_json = json.dumps([
+                    {"text": f"  {line}", "color": "white"},
+                ])
+            cmd = _cmd(f"tellraw {target} {whisper_json}")
+            if cmd:
+                cmds.append(cmd)
+        # Notification to others (just once, not per-line)
         notify_json = json.dumps([
             {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
             {"text": f"*whispers to {target}*", "color": "gray", "italic": True},
         ])
-        cmds = []
-        cmd = _cmd(f"tellraw {target} {whisper_json}")
-        if cmd:
-            cmds.append(cmd)
         cmd = _cmd(f"tellraw @a[name=!{target}] {notify_json}")
         if cmd:
             cmds.append(cmd)
         return cmds
     else:
-        # Public message — to everyone
-        tellraw_json = json.dumps([
-            {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
-            {"text": message, "color": "white"},
-        ])
-        return _cmd(f"tellraw @a {tellraw_json}")
+        # Public message — first line gets prefix, rest are continuation
+        cmds = []
+        for i, line in enumerate(lines):
+            if i == 0:
+                tellraw_json = json.dumps([
+                    {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
+                    {"text": line, "color": "white"},
+                ])
+            else:
+                tellraw_json = json.dumps([
+                    {"text": f"  {line}", "color": "white"},
+                ])
+            cmd = _cmd(f"tellraw @a {tellraw_json}")
+            if cmd:
+                cmds.append(cmd)
+        return cmds
 
 
 def _summon_mob(args: dict) -> list[dict] | None:

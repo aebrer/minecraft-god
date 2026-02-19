@@ -130,17 +130,24 @@ def test_message_without_style():
     assert "Hello" in cmd["command"]
 
 
-def test_message_length_cap():
-    long_msg = "A" * 300
-    cmd = _cmd("send_message", {"message": long_msg})
-    # Message should be capped at 200 chars
-    assert "A" * 200 in cmd["command"]
-    assert "A" * 201 not in cmd["command"]
+def test_long_message_wraps_into_multiple_commands():
+    long_msg = "A " * 100  # 200 chars, well over chat width
+    cmds = _cmds("send_message", {"message": long_msg})
+    # Should produce multiple commands from word-wrapping
+    assert len(cmds) > 1
+    # First command has the god name prefix
+    assert "The Kind God" in cmds[0]["command"]
+    # No single command contains the full original message
+    for cmd in cmds:
+        assert "A " * 100 not in cmd["command"]
 
 
-def test_message_newline_stripped():
-    cmd = _cmd("send_message", {"message": "line1\nline2", "style": "chat"})
-    assert "\\n" not in cmd["command"]
+def test_message_newlines_split_into_lines():
+    cmds = _cmds("send_message", {"message": "line1\nline2", "style": "chat"})
+    # Newlines produce separate tellraw commands
+    assert len(cmds) >= 2
+    assert "line1" in cmds[0]["command"]
+    assert "line2" in cmds[1]["command"]
 
 
 def test_message_invalid_target_produces_no_commands():

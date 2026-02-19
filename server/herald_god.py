@@ -7,6 +7,7 @@ toward defeating the Ender Dragon.
 
 import logging
 import time
+from collections.abc import Callable
 
 from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE
 from server.llm import client
@@ -103,6 +104,7 @@ class HeraldGod:
     def __init__(self):
         self._last_spoke: float = 0
         self.last_error: str | None = None
+        self.last_thinking: str | None = None
 
     def should_act(self, event_summary: str | None) -> bool:
         """Determine whether the Herald should speak this cycle.
@@ -125,7 +127,8 @@ class HeraldGod:
 
         return False
 
-    async def think(self, event_summary: str) -> list[dict]:
+    async def think(self, event_summary: str,
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict]:
         """Process events and return chat commands (only send_message).
 
         Single-turn: fresh context each call, no persistent history.
@@ -157,6 +160,9 @@ class HeraldGod:
 
         if message.content:
             logger.info(f"[Herald thinks] {message.content}")
+            self.last_thinking = message.content
+            if on_thinking:
+                on_thinking(message.content)
 
         commands = []
         if message.tool_calls:
