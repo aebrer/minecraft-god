@@ -628,7 +628,7 @@ def test_handle_tool_calls_multiple():
 
 
 # ---------------------------------------------------------------------------
-# DigMemory — FILO deque
+# DigMemory — bounded list (oldest evicted first)
 # ---------------------------------------------------------------------------
 
 

@@ -7,6 +7,7 @@ and queues commands for the Paper plugin to execute.
 import asyncio
 import collections
 import json
+from collections.abc import Callable
 import logging
 import os
 import random
@@ -287,7 +288,7 @@ def _filter_thinking_lines(text: str) -> list[str]:
     return lines
 
 
-def _make_thinking_callback(god_key: str) -> callable:
+def _make_thinking_callback(god_key: str) -> Callable[[str], None]:
     """Create a callback that broadcasts god thinking text to all players.
 
     The callback filters the text and immediately appends tellraw commands
@@ -301,7 +302,7 @@ def _make_thinking_callback(god_key: str) -> callable:
     color = style["color"]
 
     def on_thinking(text: str):
-        lines = _filter_thinking_lines(text)
+        lines = _filter_thinking_lines(text)[:6]  # cap to avoid chat spam
         if not lines:
             return
         # Header: "The Kind God thinks:" in bold
@@ -526,7 +527,7 @@ async def get_logs():
 
 
 async def _prayer_loop():
-    """Background loop that processes divine requests (prayers, herald, remember) from the queue.
+    """Background loop that processes divine requests (prayers, herald, dig, remember) from the queue.
 
     Acquires _tick_lock to prevent concurrent god think() calls with the
     timer tick — shared state (command_queue, action counts) is not safe for
@@ -573,7 +574,7 @@ async def _prayer_loop():
 
 
 async def _process_divine_request(request: DivineRequest):
-    """Process a single divine request (prayer, herald, or remember) under _tick_lock."""
+    """Process a single divine request (prayer, herald, dig, or remember) under _tick_lock."""
     global command_queue, _consolidation_cooldown_until
 
     tick_ts = time.strftime("%H:%M:%S")

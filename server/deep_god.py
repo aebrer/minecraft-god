@@ -6,6 +6,7 @@ Does not hate humans — barely notices them until they dig.
 
 import logging
 import random
+from collections.abc import Callable
 
 from server.config import (
     DEEP_GOD_DEEP_MINING_CHANCE,
@@ -267,7 +268,7 @@ class DeepGod:
         return False
 
     async def think(self, event_summary: str,
-                    on_thinking: callable = None) -> list[dict]:
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict]:
         """Process events and return Minecraft commands.
 
         Single-turn: fresh context each call, no persistent history.

@@ -9,7 +9,8 @@ import json
 import logging
 import time
 
-from pydantic import BaseModel, Field, field_validator
+from collections.abc import Callable
+from pydantic import BaseModel, Field
 from typing import Literal
 
 from server.config import (
@@ -62,18 +63,15 @@ _SHAPE_PARAMS = {
 
 class DigResponse(BaseModel):
     """Structured response from the Dig God for excavation actions."""
-    alias: str = Field(description="Punny name the god uses this appearance")
+    alias: str = Field(max_length=100, description="Punny name the god uses this appearance")
     announcement: str = Field(max_length=200, description="What the god says before digging")
     action: Literal["dig_hole", "dig_tunnel", "dig_staircase", "dig_shaft"] = Field(
         description="Which dig shape to execute")
     params: dict = Field(description="Parameters for the dig action")
     review: str = Field(max_length=200, description="God's quality review of the hole after digging")
 
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v, info):
-        # Actual shape validation happens in _validate_dig_params() after we know the action
-        return v
+    # Note: params are validated externally by _validate_dig_params() after construction,
+    # because shape-specific validation depends on the action field.
 
 
 class MemoryResponse(BaseModel):
@@ -82,7 +80,7 @@ class MemoryResponse(BaseModel):
 
 
 def _validate_dig_params(action: str, params: dict) -> BaseModel:
-    """Validate dig params against the shape-specific model. Raises ValidationError."""
+    """Validate dig params against the shape-specific model. Raises ValueError."""
     model_cls = _SHAPE_PARAMS.get(action)
     if not model_cls:
         raise ValueError(f"Unknown dig action: {action}")
@@ -217,7 +215,7 @@ class DigGod:
 
     async def think(self, event_summary: str, player_context: dict | None = None,
                     requesting_player: str | None = None,
-                    on_thinking: callable = None) -> list[dict] | None:
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict] | None:
         """Process a dig request and return Minecraft commands.
 
         Two-turn flow:
@@ -391,12 +389,9 @@ class DigGod:
             "player_facing": facing,
             "alias": dig_resp.alias,
         }
-        # Add shape-specific params
-        dig_cmd.update(validated_params.model_dump())
-        # Remove near_player from params (already at top level)
-        dig_cmd.pop("near_player", None)
-        # Re-add at top level
-        dig_cmd["near_player"] = near_player
+        # Add shape-specific params (exclude near_player — we use the
+        # corrected one from the fallback logic above)
+        dig_cmd.update(validated_params.model_dump(exclude={"near_player"}))
 
         commands.append(dig_cmd)
 
@@ -505,8 +500,12 @@ class DigGod:
         """Handle non-dig tool calls (send_message, pray_to_kind_god, undo, do_nothing)."""
         commands = []
         for tc in tool_calls:
-            name = tc.function.name
-            args = json.loads(tc.function.arguments)
+            try:
+                name = tc.function.name
+                args = json.loads(tc.function.arguments)
+            except Exception:
+                logger.exception(f"Failed to parse dig god tool call")
+                continue
             logger.info(f"[dig_god] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
 
             if name == "do_nothing":

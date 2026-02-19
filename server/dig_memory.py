@@ -1,8 +1,8 @@
-"""Dig God memory — FILO deque of hole records with JSON persistence.
+"""Dig God memory — bounded list of hole records with JSON persistence.
 
 Each record contains a free-text memory composed by the LLM plus auto-attached
-metadata (shape, coordinates, player, dimensions, timestamp). Oldest entries
-are evicted when the deque is full.
+metadata (shape, player, dimensions, alias, timestamp). Oldest entries are
+evicted when capacity is reached.
 """
 
 import json
@@ -15,7 +15,7 @@ logger = logging.getLogger("minecraft-god")
 
 
 class DigMemory:
-    """FILO deque of dig records, persisted to JSON."""
+    """Bounded list of dig records, persisted to JSON. Oldest evicted first."""
 
     def __init__(self, path: Path, max_entries: int = 15):
         self.path = path

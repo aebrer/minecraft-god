@@ -1,7 +1,7 @@
 """Divine request detection and queuing.
 
 Provides keyword classification (is_divine_request, classify_divine_request)
-as the single source of truth for prayer/herald/remember detection, and a FIFO
+as the single source of truth for prayer/herald/dig/remember detection, and a FIFO
 queue for processing player-initiated god invocations. Each request captures the
 game state at the moment it was spoken, so the god can respond with accurate
 context even if the player has moved on by the time the request is processed.
@@ -18,9 +18,9 @@ logger = logging.getLogger("minecraft-god")
 
 MAX_ATTEMPTS = 5
 
-# All keywords that trigger divine requests (prayers + herald invocations + remember).
-# "remember" is included because it goes through the DivineRequestQueue just like
-# prayers and heralds — it should be filtered from the spontaneous tick context.
+# All keywords that trigger divine requests (prayers + herald + dig + remember).
+# All four types go through the DivineRequestQueue — they should be filtered
+# from the spontaneous tick context.
 _ALL_DIVINE_KEYWORDS = PRAYER_KEYWORDS | HERALD_KEYWORDS | DIG_KEYWORDS | REMEMBER_KEYWORDS
 
 
@@ -144,7 +144,7 @@ class DivineRequest:
 
 
 class DivineRequestQueue:
-    """FIFO queue of divine requests (prayers + herald invocations + remember)."""
+    """FIFO queue of divine requests (prayers + herald + dig + remember)."""
 
     def __init__(self):
         self._queue: asyncio.Queue[DivineRequest] = asyncio.Queue()

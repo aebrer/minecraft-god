@@ -4,6 +4,7 @@ Benevolent, bound by Rules, cryptic by necessity, afraid of what's below.
 """
 
 import logging
+from collections.abc import Callable
 
 from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE, MEMORY_FILE
 from server.llm import client
@@ -391,7 +392,7 @@ class KindGod:
 
     async def think(self, event_summary: str, player_context: dict | None = None,
                     requesting_player: str | None = None,
-                    on_thinking: callable = None) -> list[dict]:
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict]:
         """Process events and return Minecraft commands.
 
         Each call starts with a fresh LLM context — no persistent conversation

@@ -928,6 +928,17 @@ public class MinecraftGodPlugin extends JavaPlugin implements Listener {
      * Computes the dig volume from the command params and clears/places blocks instantly.
      */
     private void executeDigCommand(JsonObject cmd) {
+        try {
+            executeDigCommandInner(cmd);
+        } catch (Exception e) {
+            getLogger().severe("Dig command failed: " + e.getMessage());
+            getLogger().severe("Command was: " + cmd.toString().substring(0, Math.min(cmd.toString().length(), 200)));
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                    "tellraw @a [{\"text\":\"The God of Digging's excavation crumbled! Something went wrong.\",\"color\":\"red\"}]");
+        }
+    }
+
+    private void executeDigCommandInner(JsonObject cmd) {
         String type = cmd.get("type").getAsString();
         int px = cmd.get("player_x").getAsInt();
         int py = cmd.get("player_y").getAsInt();

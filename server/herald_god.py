@@ -7,6 +7,7 @@ toward defeating the Ender Dragon.
 
 import logging
 import time
+from collections.abc import Callable
 
 from server.config import GOD_MODEL, MAX_TOOL_CALLS_PER_RESPONSE
 from server.llm import client
@@ -127,7 +128,7 @@ class HeraldGod:
         return False
 
     async def think(self, event_summary: str,
-                    on_thinking: callable = None) -> list[dict]:
+                    on_thinking: Callable[[str], None] | None = None) -> list[dict]:
         """Process events and return chat commands (only send_message).
 
         Single-turn: fresh context each call, no persistent history.

@@ -72,7 +72,7 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
         - commands: list of command dicts (with "command" or "type" key)
         - errors: dict mapping tool_call_id -> error message for failed calls
 
-    source: which god is speaking ("kind_god", "deep_god", "herald")
+    source: which god is speaking ("kind_god", "deep_god", "herald", "dig_god")
     player_context: dict mapping player names (lowercase) to their position/facing data,
         used for resolving build_schematic placement. Each entry has:
         {"x": int, "y": int, "z": int, "facing": str}
@@ -269,7 +269,7 @@ def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | N
     if target and not _validate_player_target(target):
         return None
 
-    lines = _wrap_message_lines(message)
+    lines = _wrap_message_lines(message)[:10]  # cap to prevent chat flooding
     if not lines:
         return None
 
