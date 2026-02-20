@@ -57,3 +57,6 @@ DIG_MAX_STEPS = 64
 # Dig God memory
 DIG_MEMORY_FILE = MEMORY_DIR / "dig_god_memory.json"
 DIG_MEMORY_MAX_ENTRIES = 15
+
+# Player whitelist (Paper server)
+WHITELIST_FILE = _project_root / "paper" / "whitelist.json"

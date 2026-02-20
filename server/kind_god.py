@@ -1,6 +1,9 @@
 """The Kind God (Surface God).
 
 Benevolent, bound by Rules, cryptic by necessity, afraid of what's below.
+
+Uses a multi-turn tool_call flow (search → build, with nudges and error retry),
+followed by a memory turn where the god reflects on what it did.
 """
 
 import logging
@@ -284,7 +287,7 @@ TOOLS = [
                     "mission_description": {"type": "string", "description": "Description (shown as subtitle)"},
                     "reward_hint": {"type": "string", "description": "Hint about reward (shown in chat)"},
                 },
-                "required": ["player", "mission_title", "mission_description"],
+                "required": ["player", "mission_title"],
             },
         },
     },
@@ -388,6 +391,7 @@ class KindGod:
         self.memory = KindGodMemory(MEMORY_FILE)
         self.last_error: str | None = None
         self.last_thinking: str | None = None
+        self.last_memory: str | None = None  # reflection from most recent memory turn
         self._deep_god_acted: bool = False
 
     async def think(self, event_summary: str, player_context: dict | None = None,
@@ -403,6 +407,7 @@ class KindGod:
         requesting_player: the player who triggered this action (e.g. the praying player).
             Used as the default near_player for build_schematic.
         """
+        self.last_memory = None  # reset at start — prevents stale state on early return
         memory_block = self.memory.format_for_prompt()
         system_content = SYSTEM_PROMPT + memory_block
 
@@ -571,7 +576,47 @@ class KindGod:
             else:
                 break
 
+        # Memory turn — compose a reflection on what the god just did.
+        # The reflection is stored in last_memory for the caller to log.
+        if commands:
+            self.last_memory = await self._compose_memory(system_content, conversation)
+
         return commands
+
+    async def _compose_memory(self, system_content: str,
+                               conversation: list[dict]) -> str | None:
+        """Memory turn: ask the LLM to compose a brief reflection on its actions.
+
+        Uses the full conversation context so the god remembers exactly what it
+        did and why. The reflection is returned to the caller (main.py) for
+        inclusion in the consolidation activity log.
+        """
+        memory_conversation = list(conversation)
+        memory_conversation.append({
+            "role": "user",
+            "content": (
+                "[SYSTEM] Compose a brief memory (1-2 sentences) reflecting on "
+                "what you just did and why. What happened? What did you notice "
+                "about the players? Is there anything you want to remember for "
+                "later? Respond with just the text — no tool calls."
+            ),
+        })
+
+        try:
+            response = await client.chat.completions.create(
+                model=GOD_MODEL,
+                messages=[{"role": "system", "content": system_content}] + memory_conversation,
+                temperature=0.7,
+                tool_choice="none",
+            )
+            content = response.choices[0].message.content
+            if content:
+                memory = content.strip()[:500]
+                logger.info(f"[Kind God memory] {memory}")
+                return memory
+        except Exception:
+            logger.warning("Kind God memory composition failed", exc_info=True)
+        return None
 
     def notify_deep_god_acted(self):
         """Flag that the Deep God intervened — injected into next think() context."""

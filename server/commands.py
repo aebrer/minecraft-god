@@ -1,12 +1,18 @@
 """Translate LLM tool calls into Minecraft commands.
 
 All commands go through an allowlist. If something isn't in the list, it gets dropped.
+Tool call arguments are validated through pydantic models with helpful error messages.
+Player names are validated against the server whitelist.
 """
 
 import json
 import logging
 import re
 
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from typing import Literal
+
+from server.config import WHITELIST_FILE
 from server.schematics import search_schematics, build_schematic_command
 
 logger = logging.getLogger("minecraft-god")
@@ -62,6 +68,319 @@ VALID_EFFECTS = {
     "saturation", "glowing",
 }
 
+# Regex for valid player names (Java Edition: alphanumeric + underscores, 3-16 chars)
+_PLAYER_NAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,16}$")
+# Regex for valid coordinates (numbers, ~, ^, -, .)
+_COORD_RE = re.compile(r"^[~^0-9. -]+$")
+# Regex for valid item names
+_ITEM_NAME_RE = re.compile(r"^[a-z0-9_]+$")
+# Regex for valid sound IDs
+_SOUND_RE = re.compile(r"^[a-z0-9_.:/-]+$")
+
+
+# ─── Whitelist loading ────────────────────────────────────────────────────────
+
+_whitelist_cache: set[str] | None = None
+_whitelist_mtime: float = 0
+
+
+def get_whitelist_names() -> set[str]:
+    """Load player names from the Paper server whitelist, cached until file changes."""
+    global _whitelist_cache, _whitelist_mtime
+    try:
+        stat = WHITELIST_FILE.stat()
+        if _whitelist_cache is not None and stat.st_mtime == _whitelist_mtime:
+            return _whitelist_cache
+        data = json.loads(WHITELIST_FILE.read_text())
+        _whitelist_cache = {entry["name"] for entry in data if "name" in entry}
+        _whitelist_mtime = stat.st_mtime
+        logger.info(f"Loaded whitelist: {sorted(_whitelist_cache)}")
+        return _whitelist_cache
+    except (OSError, json.JSONDecodeError, KeyError):
+        logger.warning("Failed to load whitelist — player name validation disabled")
+        return set()
+
+
+def _check_player_target(target: str, whitelist: set[str]) -> None:
+    """Validate a player name or target selector against the whitelist.
+
+    Raises ValueError with a helpful message if invalid.
+    Target selectors (@a, @s, @p) are always allowed.
+    """
+    if target in ALLOWED_SELECTORS:
+        return
+    if not _PLAYER_NAME_RE.match(target):
+        raise ValueError(
+            f"Invalid player target '{target}'. "
+            f"Use a player name or one of: {', '.join(sorted(ALLOWED_SELECTORS))}")
+    if whitelist:
+        whitelist_lower = {n.lower(): n for n in whitelist}
+        if target.lower() not in whitelist_lower:
+            raise ValueError(
+                f"Player '{target}' is not on the whitelist. "
+                f"Whitelisted players: {', '.join(sorted(whitelist))}")
+
+
+# ─── Pydantic models for tool call arguments ─────────────────────────────────
+
+
+class SendMessageParams(BaseModel):
+    message: str = Field(min_length=1)
+    target_player: str | None = None
+
+
+class SummonMobParams(BaseModel):
+    mob_type: str
+    near_player: str | None = None
+    location: str = "~ ~ ~"
+    count: int = 1
+
+    @field_validator('mob_type', mode='before')
+    @classmethod
+    def normalize_mob(cls, v):
+        return str(v).lower().replace("minecraft:", "")
+
+    @field_validator('mob_type')
+    @classmethod
+    def validate_mob(cls, v):
+        if v not in VALID_MOBS:
+            raise ValueError(
+                f"Invalid mob type '{v}'. "
+                f"Valid types: {', '.join(sorted(VALID_MOBS))}")
+        return v
+
+    @field_validator('location')
+    @classmethod
+    def validate_location(cls, v):
+        if not _COORD_RE.match(v):
+            raise ValueError(
+                f"Invalid location '{v}'. "
+                f"Use coordinates like '~ ~ ~' or '100 64 -200'.")
+        return v
+
+    @field_validator('count', mode='before')
+    @classmethod
+    def clamp_count(cls, v):
+        try:
+            return max(1, min(int(v) if v is not None else 1, 5))
+        except (TypeError, ValueError):
+            return 1
+
+
+class ChangeWeatherParams(BaseModel):
+    weather_type: Literal["clear", "rain", "thunder"]
+    duration: int = 6000
+
+    @field_validator('weather_type', mode='before')
+    @classmethod
+    def normalize_weather(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+    @field_validator('duration', mode='before')
+    @classmethod
+    def clamp_duration(cls, v):
+        try:
+            return max(1, min(int(v) if v is not None else 6000, 24000))
+        except (TypeError, ValueError):
+            return 6000
+
+
+class GiveEffectParams(BaseModel):
+    target_player: str = "@a"
+    effect: str
+    duration: int = 30
+    amplifier: int = 0
+
+    @field_validator('effect', mode='before')
+    @classmethod
+    def normalize_effect(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+    @field_validator('effect')
+    @classmethod
+    def validate_effect(cls, v):
+        if v not in VALID_EFFECTS:
+            raise ValueError(
+                f"Invalid effect '{v}'. "
+                f"Valid effects: {', '.join(sorted(VALID_EFFECTS))}")
+        return v
+
+    @field_validator('duration', mode='before')
+    @classmethod
+    def clamp_duration(cls, v):
+        try:
+            return max(1, min(int(v) if v is not None else 30, 120))
+        except (TypeError, ValueError):
+            return 30
+
+    @field_validator('amplifier', mode='before')
+    @classmethod
+    def clamp_amplifier(cls, v):
+        try:
+            return max(0, min(int(v) if v is not None else 0, 3))
+        except (TypeError, ValueError):
+            return 0
+
+
+class SetTimeParams(BaseModel):
+    time: Literal["day", "noon", "sunset", "night", "midnight", "sunrise"]
+
+    @field_validator('time', mode='before')
+    @classmethod
+    def normalize_time(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+
+class GiveItemParams(BaseModel):
+    player: str = "@a"
+    item: str
+    count: int = 1
+
+    @field_validator('item', mode='before')
+    @classmethod
+    def normalize_item(cls, v):
+        return str(v).lower().replace("minecraft:", "") if isinstance(v, str) else v
+
+    @field_validator('item')
+    @classmethod
+    def validate_item(cls, v):
+        if not _ITEM_NAME_RE.match(v):
+            raise ValueError(
+                f"Invalid item name '{v}'. "
+                f"Item names must be lowercase alphanumeric with underscores.")
+        if v in BLOCKED_ITEMS:
+            raise ValueError(
+                f"'{v}' is a restricted item and cannot be given to players.")
+        return v
+
+    @field_validator('count', mode='before')
+    @classmethod
+    def clamp_count(cls, v):
+        try:
+            return max(1, min(int(v) if v is not None else 1, 64))
+        except (TypeError, ValueError):
+            return 1
+
+
+class ClearItemParams(BaseModel):
+    player: str = "@a"
+    item: str | None = None
+
+    @field_validator('item', mode='before')
+    @classmethod
+    def normalize_item(cls, v):
+        if not v or v == "":
+            return None
+        return str(v).lower().replace("minecraft:", "")
+
+    @field_validator('item')
+    @classmethod
+    def validate_item(cls, v):
+        if v is not None and not _ITEM_NAME_RE.match(v):
+            raise ValueError(
+                f"Invalid item name '{v}'. "
+                f"Item names must be lowercase alphanumeric with underscores.")
+        return v
+
+
+class StrikeLightningParams(BaseModel):
+    near_player: str
+    offset: str = "~ ~ ~"
+
+    @field_validator('offset')
+    @classmethod
+    def validate_offset(cls, v):
+        if not _COORD_RE.match(v):
+            raise ValueError(
+                f"Invalid offset '{v}'. "
+                f"Use coordinates like '~ ~ ~' or '~3 ~ ~'.")
+        return v
+
+
+class PlaySoundParams(BaseModel):
+    sound: str
+    target_player: str | None = None
+
+    @field_validator('sound')
+    @classmethod
+    def validate_sound(cls, v):
+        s = v if v.startswith("minecraft:") else f"minecraft:{v}"
+        if not _SOUND_RE.match(s):
+            raise ValueError(
+                f"Invalid sound '{v}'. "
+                f"Sound IDs must be lowercase with dots/underscores/colons.")
+        return v
+
+
+class SetDifficultyParams(BaseModel):
+    difficulty: Literal["peaceful", "easy", "normal", "hard"]
+
+    @field_validator('difficulty', mode='before')
+    @classmethod
+    def normalize_difficulty(cls, v):
+        return str(v).lower() if isinstance(v, str) else v
+
+
+class TeleportPlayerParams(BaseModel):
+    player: str
+    x: int
+    y: int = 64
+    z: int = 0
+
+
+class AssignMissionParams(BaseModel):
+    player: str
+    mission_title: str
+    mission_description: str = ""
+    reward_hint: str = ""
+
+
+class BuildSchematicParams(BaseModel):
+    blueprint_id: str
+    near_player: str | None = None
+    in_front: bool = True
+    direction: Literal["N", "S", "E", "W", "NE", "SE", "SW", "NW"] = "N"
+    distance: Literal["near", "medium", "far"] = "near"
+    rotation: Literal[0, 90, 180, 270] = 0
+
+    @field_validator('direction', mode='before')
+    @classmethod
+    def normalize_direction(cls, v):
+        valid = {"N", "S", "E", "W", "NE", "SE", "SW", "NW"}
+        upper = str(v).upper() if isinstance(v, str) else v
+        return upper if upper in valid else "N"
+
+    @field_validator('rotation', mode='before')
+    @classmethod
+    def normalize_rotation(cls, v):
+        try:
+            return int(v) if v is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+
+class DoNothingParams(BaseModel):
+    reason: str = ""
+
+
+# ─── Error formatting ─────────────────────────────────────────────────────────
+
+
+def _format_validation_error(tool_name: str, error: ValidationError) -> str:
+    """Format a pydantic ValidationError into a helpful LLM error message."""
+    field_errors = []
+    for e in error.errors():
+        field = '.'.join(str(loc) for loc in e['loc'])
+        msg = e['msg']
+        # Strip pydantic's "Value error, " prefix for cleaner messages
+        if msg.startswith("Value error, "):
+            msg = msg[len("Value error, "):]
+        field_errors.append(f"  {field}: {msg}")
+    return f"ERROR in {tool_name}:\n" + "\n".join(field_errors)
+
+
+# ─── Main translation entry point ────────────────────────────────────────────
+
 
 def translate_tool_calls(tool_calls: list, source: str = "kind_god",
                          player_context: dict | None = None,
@@ -79,28 +398,34 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
     requesting_player: the player who triggered this action (e.g. the praying player).
         Used as the default near_player for build_schematic when the LLM omits it.
     """
+    whitelist = get_whitelist_names()
+
     commands = []
     errors = {}
     for tc in tool_calls:
+        name = getattr(tc.function, 'name', '?')
         try:
-            name = tc.function.name
             args = json.loads(tc.function.arguments)
             logger.info(f"[{source}] tool call: {name}({json.dumps(args, separators=(',', ':'))})")
-            result = _translate_one(tc, source, player_context=player_context,
-                                    requesting_player=requesting_player)
+            result = _translate_one(name, args, source,
+                                    player_context=player_context,
+                                    requesting_player=requesting_player,
+                                    whitelist=whitelist)
             if result is None:
-                # Build an error message based on what failed
-                error = _describe_failure(name, args)
-                if error:
-                    errors[tc.id] = error
-                continue
+                continue  # do_nothing
             if isinstance(result, list):
                 commands.extend(result)
             else:
                 commands.append(result)
+        except ValidationError as e:
+            logger.warning(f"[{source}] {name} validation failed: {e}")
+            errors[tc.id] = _format_validation_error(name, e)
+        except ValueError as e:
+            logger.warning(f"[{source}] {name} rejected: {e}")
+            errors[tc.id] = f"ERROR: {e}"
         except Exception:
-            logger.exception(f"Failed to translate tool call: {tc.function.name}")
-            errors[tc.id] = f"Internal error processing {tc.function.name}"
+            logger.exception(f"Failed to translate tool call: {name}")
+            errors[tc.id] = f"Internal error processing {name}"
 
     for cmd in commands:
         if cmd.get("type") == "build_schematic":
@@ -114,107 +439,81 @@ def translate_tool_calls(tool_calls: list, source: str = "kind_god",
     return commands, errors
 
 
-def _describe_failure(name: str, args: dict) -> str | None:
-    """Return a human-readable error for a tool call rejected by validation.
-
-    Called when _translate_one() returns None. This only handles local validation
-    failures (bad arguments, unknown IDs, blocked items) — NOT network/timeout
-    errors, which are handled upstream by the prayer queue retry mechanism.
-    """
-    if name == "do_nothing":
-        return None  # intentional no-op
-    if name == "build_schematic":
-        bp_id = args.get("blueprint_id", "")
-        from server.schematics import _load_catalog
-        catalog = _load_catalog()
-        # Check if blueprint exists
-        found = False
-        for cat_data in catalog["categories"].values():
-            for bp in cat_data.get("blueprints", []):
-                if bp["id"] == bp_id:
-                    found = True
-                    break
-            if found:
-                break
-        if not found:
-            return (f"ERROR: Blueprint '{bp_id}' not found. The ID may be misspelled. "
-                    f"Copy the exact ID from the search results and try again.")
-        return None  # blueprint exists; failure was likely missing position data
-    elif name == "summon_mob":
-        mob = args.get("mob_type", "").lower().replace("minecraft:", "")
-        if mob not in VALID_MOBS:
-            return f"ERROR: Invalid mob type '{mob}'."
-    elif name == "give_effect":
-        effect = args.get("effect", "").lower()
-        if effect not in VALID_EFFECTS:
-            return f"ERROR: Invalid effect '{effect}'."
-    elif name == "give_item":
-        item = args.get("item", "").lower().replace("minecraft:", "")
-        if item in BLOCKED_ITEMS:
-            return f"ERROR: '{item}' is a restricted item and cannot be given."
-    # Catch-all for any other tool call that was rejected
-    return f"ERROR: {name} failed. Check the arguments and try again."
+# ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 
-def _translate_one(tool_call, source: str = "kind_god",
+def _translate_one(name: str, args: dict, source: str = "kind_god",
                    player_context: dict | None = None,
-                   requesting_player: str | None = None) -> dict | list[dict] | None:
-    name = tool_call.function.name
-    args = json.loads(tool_call.function.arguments)
+                   requesting_player: str | None = None,
+                   whitelist: set[str] | None = None) -> dict | list[dict] | None:
+    """Translate a single tool call. Raises ValidationError or ValueError on failure."""
+    wl = whitelist or set()
 
     if name == "do_nothing":
-        reason = args.get("reason", "no reason given")
-        logger.info(f"God chose to do nothing: {reason}")
+        params = DoNothingParams(**args)
+        logger.info(f"God chose to do nothing: {params.reason}")
         return None
 
     if name == "send_message":
-        return _send_message(args, source)
+        params = SendMessageParams(**args)
+        if params.target_player is not None:
+            _check_player_target(params.target_player, wl)
+        return _send_message(params, source)
     elif name == "summon_mob":
-        return _summon_mob(args)
+        params = SummonMobParams(**args)
+        if params.near_player is not None:
+            _check_player_target(params.near_player, wl)
+        return _summon_mob(params)
     elif name == "change_weather":
-        return _change_weather(args)
+        params = ChangeWeatherParams(**args)
+        return _change_weather(params)
     elif name == "give_effect":
-        return _give_effect(args)
+        params = GiveEffectParams(**args)
+        _check_player_target(params.target_player, wl)
+        return _give_effect(params)
     elif name == "set_time":
-        return _set_time(args)
+        params = SetTimeParams(**args)
+        return _set_time(params)
     elif name == "give_item":
-        return _give_item(args)
+        params = GiveItemParams(**args)
+        _check_player_target(params.player, wl)
+        return _give_item(params)
     elif name == "clear_item":
-        return _clear_item(args)
+        params = ClearItemParams(**args)
+        _check_player_target(params.player, wl)
+        return _clear_item(params)
     elif name == "strike_lightning":
-        return _strike_lightning(args)
+        params = StrikeLightningParams(**args)
+        _check_player_target(params.near_player, wl)
+        return _strike_lightning(params)
     elif name == "play_sound":
-        return _play_sound(args)
+        params = PlaySoundParams(**args)
+        if params.target_player is not None:
+            _check_player_target(params.target_player, wl)
+        return _play_sound(params)
     elif name == "set_difficulty":
-        return _set_difficulty(args)
+        params = SetDifficultyParams(**args)
+        return _set_difficulty(params)
     elif name == "teleport_player":
-        return _teleport_player(args)
+        params = TeleportPlayerParams(**args)
+        _check_player_target(params.player, wl)
+        return _teleport_player(params)
     elif name == "assign_mission":
-        return _assign_mission(args, source)
+        params = AssignMissionParams(**args)
+        _check_player_target(params.player, wl)
+        return _assign_mission(params, source)
     elif name == "build_schematic":
-        return _build_schematic(args, player_context=player_context,
-                                requesting_player=requesting_player)
+        params = BuildSchematicParams(**args)
+        return _build_schematic(params, player_context=player_context,
+                                requesting_player=requesting_player,
+                                whitelist=wl)
     elif name == "undo_last_build":
         return {"type": "undo_last_build"}
     else:
-        logger.warning(f"Unknown tool call: {name}")
-        return None
+        raise ValueError(f"Unknown tool '{name}'.")
 
 
-# Regex for valid player names (Java Edition: alphanumeric + underscores, 3-16 chars)
-_PLAYER_NAME_RE = re.compile(r"^[a-zA-Z0-9_ ]{1,32}$")
-# Regex for valid coordinates (numbers, ~, ^, -, .)
-_COORD_RE = re.compile(r"^[~^0-9. -]+$")
-
-
-def _validate_player_target(target: str) -> bool:
-    """Validate a player name or target selector."""
-    if target in ALLOWED_SELECTORS:
-        return True
-    if _PLAYER_NAME_RE.match(target):
-        return True
-    logger.warning(f"Blocked invalid player target: {target}")
-    return False
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
 def _validate_command(cmd_str: str) -> bool:
@@ -261,19 +560,17 @@ def _wrap_message_lines(text: str, width: int = _CHAT_LINE_WIDTH) -> list[str]:
     return lines
 
 
-def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | None:
-    message = args.get("message", "")
-    target = args.get("target_player")
+# ─── Individual tool handlers ─────────────────────────────────────────────────
 
+
+def _send_message(params: SendMessageParams, source: str = "kind_god") -> dict | list[dict] | None:
     god_style = GOD_CHAT_STYLE.get(source, {"name": "God", "color": "white"})
-    if target and not _validate_player_target(target):
-        return None
 
-    lines = _wrap_message_lines(message)[:10]  # cap to prevent chat flooding
+    lines = _wrap_message_lines(params.message)[:10]  # cap to prevent chat flooding
     if not lines:
         return None
 
-    if target:
+    if params.target_player:
         # Private message — first line gets the god prefix, rest are continuation
         cmds = []
         for i, line in enumerate(lines):
@@ -287,15 +584,15 @@ def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | N
                 whisper_json = json.dumps([
                     {"text": f"  {line}", "color": "white"},
                 ])
-            cmd = _cmd(f"tellraw {target} {whisper_json}")
+            cmd = _cmd(f"tellraw {params.target_player} {whisper_json}")
             if cmd:
                 cmds.append(cmd)
         # Notification to others (just once, not per-line)
         notify_json = json.dumps([
             {"text": f"<{god_style['name']}> ", "color": god_style["color"], "bold": True},
-            {"text": f"*whispers to {target}*", "color": "gray", "italic": True},
+            {"text": f"*whispers to {params.target_player}*", "color": "gray", "italic": True},
         ])
-        cmd = _cmd(f"tellraw @a[name=!{target}] {notify_json}")
+        cmd = _cmd(f"tellraw @a[name=!{params.target_player}] {notify_json}")
         if cmd:
             cmds.append(cmd)
         return cmds
@@ -318,151 +615,73 @@ def _send_message(args: dict, source: str = "kind_god") -> dict | list[dict] | N
         return cmds
 
 
-def _summon_mob(args: dict) -> list[dict] | None:
-    mob_type = args.get("mob_type", "").lower().replace("minecraft:", "")
-    if mob_type not in VALID_MOBS:
-        logger.warning(f"Blocked invalid mob type: {mob_type}")
-        return None
-
-    near_player = args.get("near_player")
-    location = args.get("location", "~ ~ ~")
-    if not _COORD_RE.match(location):
-        logger.warning(f"Blocked invalid summon location: {location}")
-        return None
-    count = min(max(args.get("count", 1), 1), 5)  # clamp 1-5
-
+def _summon_mob(params: SummonMobParams) -> list[dict] | None:
     commands = []
-    for _ in range(count):
-        cmd = _cmd(f"summon minecraft:{mob_type} {location}", target_player=near_player)
+    for _ in range(params.count):
+        cmd = _cmd(f"summon minecraft:{params.mob_type} {params.location}",
+                   target_player=params.near_player)
         if cmd:
             commands.append(cmd)
     return commands
 
 
-def _change_weather(args: dict) -> dict | None:
-    weather = args.get("weather_type", "clear").lower()
-    if weather not in ("clear", "rain", "thunder"):
-        logger.warning(f"Blocked invalid weather type: {weather}")
-        return None
-    duration = min(max(args.get("duration", 6000), 1), 24000)
-    return _cmd(f"weather {weather} {duration}")
+def _change_weather(params: ChangeWeatherParams) -> dict | None:
+    return _cmd(f"weather {params.weather_type} {params.duration}")
 
 
-def _give_effect(args: dict) -> dict | None:
-    target = args.get("target_player", "@a")
-    if not _validate_player_target(target):
-        return None
-    effect = args.get("effect", "").lower()
-    if effect not in VALID_EFFECTS:
-        logger.warning(f"Blocked invalid effect: {effect}")
-        return None
-    duration = min(max(args.get("duration", 30), 1), 120)
-    amplifier = min(max(args.get("amplifier", 0), 0), 3)
-    return _cmd(f"effect give {target} minecraft:{effect} {duration} {amplifier}")
+def _give_effect(params: GiveEffectParams) -> dict | None:
+    return _cmd(
+        f"effect give {params.target_player} minecraft:{params.effect} "
+        f"{params.duration} {params.amplifier}")
 
 
-def _set_time(args: dict) -> dict | None:
-    time_val = args.get("time", "day").lower()
-    valid_times = {"day", "noon", "sunset", "night", "midnight", "sunrise"}
-    if time_val not in valid_times:
-        logger.warning(f"Blocked invalid time value: {time_val}")
-        return None
-    return _cmd(f"time set {time_val}")
+def _set_time(params: SetTimeParams) -> dict | None:
+    return _cmd(f"time set {params.time}")
 
 
-def _give_item(args: dict) -> dict | None:
-    player = args.get("player", "@a")
-    if not _validate_player_target(player):
-        return None
-    item = args.get("item", "").lower().replace("minecraft:", "")
-    if not re.match(r"^[a-z0-9_]+$", item):
-        logger.warning(f"Blocked invalid item name: {item}")
-        return None
-    if item in BLOCKED_ITEMS:
-        logger.warning(f"Blocked dangerous item: {item}")
-        return None
-    count = min(max(args.get("count", 1), 1), 64)
-    return _cmd(f"give {player} minecraft:{item} {count}")
+def _give_item(params: GiveItemParams) -> dict | None:
+    return _cmd(f"give {params.player} minecraft:{params.item} {params.count}")
 
 
-def _clear_item(args: dict) -> dict | None:
-    player = args.get("player", "@a")
-    if not _validate_player_target(player):
-        return None
-    item = args.get("item", "")
-    if item:
-        item = item.lower().replace("minecraft:", "")
-        if not re.match(r"^[a-z0-9_]+$", item):
-            logger.warning(f"Blocked invalid item name: {item}")
-            return None
-        return _cmd(f"clear {player} minecraft:{item}")
+def _clear_item(params: ClearItemParams) -> dict | None:
+    if params.item:
+        return _cmd(f"clear {params.player} minecraft:{params.item}")
     else:
-        return _cmd(f"clear {player}")
+        return _cmd(f"clear {params.player}")
 
 
-def _strike_lightning(args: dict) -> dict | None:
-    near_player = args.get("near_player")
-    offset = args.get("offset", "~ ~ ~")
-    if not _COORD_RE.match(offset):
-        logger.warning(f"Blocked invalid lightning offset: {offset}")
-        return None
-    return _cmd(f"summon minecraft:lightning_bolt {offset}", target_player=near_player)
+def _strike_lightning(params: StrikeLightningParams) -> dict | None:
+    return _cmd(f"summon minecraft:lightning_bolt {params.offset}",
+                target_player=params.near_player)
 
 
-_SOUND_RE = re.compile(r"^[a-z0-9_.:/-]+$")
-
-
-def _play_sound(args: dict) -> dict | None:
-    sound = args.get("sound", "")
-    target = args.get("target_player", "@a")
-    if not _validate_player_target(target):
-        return None
-    sound = sound if sound.startswith("minecraft:") else f"minecraft:{sound}"
-    if not _SOUND_RE.match(sound):
-        logger.warning(f"Blocked invalid sound: {sound}")
-        return None
+def _play_sound(params: PlaySoundParams) -> dict | None:
+    sound = params.sound if params.sound.startswith("minecraft:") else f"minecraft:{params.sound}"
+    target = params.target_player or "@a"
     return _cmd(f"playsound {sound} master {target}")
 
 
-def _set_difficulty(args: dict) -> dict | None:
-    difficulty = args.get("difficulty", "normal").lower()
-    if difficulty not in ("peaceful", "easy", "normal", "hard"):
-        logger.warning(f"Blocked invalid difficulty: {difficulty}")
-        return None
-    return _cmd(f"difficulty {difficulty}")
+def _set_difficulty(params: SetDifficultyParams) -> dict | None:
+    return _cmd(f"difficulty {params.difficulty}")
 
 
-def _teleport_player(args: dict) -> dict | None:
-    player = args.get("player", "")
-    if not _validate_player_target(player):
-        return None
-    x = args.get("x", 0)
-    y = args.get("y", 64)
-    z = args.get("z", 0)
-    return _cmd(f"tp {player} {x} {y} {z}")
+def _teleport_player(params: TeleportPlayerParams) -> dict | None:
+    return _cmd(f"tp {params.player} {params.x} {params.y} {params.z}")
 
 
-def _assign_mission(args: dict, source: str = "kind_god") -> list[dict]:
-    """Send a mission as tellraw chat announcement."""
-    player = args.get("player", "@a")
-    if not _validate_player_target(player):
-        return []
-    title = args.get("mission_title", "A Task")
-    description = args.get("mission_description", "")
-    reward_hint = args.get("reward_hint", "")
-
+def _assign_mission(params: AssignMissionParams, source: str = "kind_god") -> list[dict]:
     style = GOD_CHAT_STYLE.get(source, GOD_CHAT_STYLE["kind_god"])
 
     # Build quest announcement as tellraw
     parts = [
         {"text": f"<{style['name']}> ", "color": style["color"], "bold": True},
-        {"text": f"Quest for {player}: ", "color": "yellow"},
-        {"text": title, "color": "gold", "bold": True},
+        {"text": f"Quest for {params.player}: ", "color": "yellow"},
+        {"text": params.mission_title, "color": "gold", "bold": True},
     ]
-    if description:
-        parts.append({"text": f" — {description[:100]}", "color": "yellow"})
-    if reward_hint:
-        parts.append({"text": f" ({reward_hint})", "color": "gray", "italic": True})
+    if params.mission_description:
+        parts.append({"text": f" — {params.mission_description[:100]}", "color": "yellow"})
+    if params.reward_hint:
+        parts.append({"text": f" ({params.reward_hint})", "color": "gray", "italic": True})
 
     tellraw_json = json.dumps(parts)
     cmd = _cmd(f"tellraw @a {tellraw_json}")
@@ -478,68 +697,85 @@ _DIRECTION_OFFSETS = {
 # Distance presets in blocks
 _DISTANCE_BLOCKS = {"near": 10, "medium": 25, "far": 50}
 
-def _build_schematic(args: dict, player_context: dict | None = None,
-                     requesting_player: str | None = None) -> dict | None:
-    blueprint_id = args.get("blueprint_id", "")
-    near_player = args.get("near_player", "") or requesting_player or ""
-    in_front = args.get("in_front", True)  # default to in_front
-    direction = args.get("direction", "N")
-    distance_key = args.get("distance", "near")
-    rotation = args.get("rotation", 0)
+
+def _build_schematic(params: BuildSchematicParams, player_context: dict | None = None,
+                     requesting_player: str | None = None,
+                     whitelist: set[str] | None = None) -> dict | None:
+    near_player = params.near_player or requesting_player or ""
 
     if not near_player:
-        logger.warning("build_schematic missing near_player and no requesting_player")
-        return None
+        raise ValueError(
+            "build_schematic requires near_player. "
+            "Specify which player to build near.")
 
-    # Look up player position — fall back to requesting player if LLM misspelled the name
+    # Validate the player — but for build_schematic, if the LLM misspelled the
+    # name and we have a requesting_player, fall back instead of hard-failing.
+    try:
+        _check_player_target(near_player, whitelist or set())
+    except ValueError:
+        if requesting_player and near_player != requesting_player:
+            logger.info(f"build_schematic: '{near_player}' failed validation, "
+                        f"falling back to requesting player '{requesting_player}'")
+            near_player = requesting_player
+            _check_player_target(near_player, whitelist or set())
+        else:
+            raise
+
+    # Look up player position — fall back to requesting player if not found in context
     player_data = None
     if player_context:
         player_data = player_context.get(near_player.lower())
         if not player_data and requesting_player:
             fallback = player_context.get(requesting_player.lower())
             if fallback:
-                logger.info(f"build_schematic: '{near_player}' not found, "
+                logger.info(f"build_schematic: '{near_player}' not in player_context, "
                             f"falling back to requesting player '{requesting_player}'")
                 player_data = fallback
                 near_player = requesting_player
 
     if not player_data:
-        logger.warning(f"build_schematic: no position data for player '{near_player}'")
-        return None
+        raise ValueError(
+            f"No position data for player '{near_player}'. "
+            f"The player may be offline or position data is stale.")
 
     px, py, pz = player_data["x"], player_data["y"], player_data["z"]
     facing = player_data.get("facing", "N")
 
     # Resolve direction
-    if in_front:
-        # Use player's facing direction; fall back to N if facing is unrecognized
+    if params.in_front:
         compass = facing if facing in _DIRECTION_OFFSETS else "N"
     else:
-        compass = direction.upper()
+        compass = params.direction
         if compass not in _DIRECTION_OFFSETS:
-            logger.warning(f"build_schematic: invalid direction '{direction}'")
             compass = "N"
 
     # Resolve distance
-    dist = _DISTANCE_BLOCKS.get(distance_key, 10)
+    dist = _DISTANCE_BLOCKS.get(params.distance, 10)
 
     # Compute target coordinates
     dx, dz = _DIRECTION_OFFSETS[compass]
-    # For diagonals, scale so total distance matches (dx and dz are +-1)
     if abs(dx) + abs(dz) == 2:
-        # Diagonal: use 0.7 * dist on each axis (~same total distance)
         x = int(px + dx * int(dist * 0.7))
         z = int(pz + dz * int(dist * 0.7))
     else:
         x = int(px + dx * dist)
         z = int(pz + dz * dist)
-    y = py  # ground level at player's Y
+    y = py
 
     logger.info(f"build_schematic: resolved {near_player} "
-                f"({'in_front' if in_front else compass} {distance_key}) "
+                f"({'in_front' if params.in_front else compass} {params.distance}) "
                 f"-> ({x}, {y}, {z})")
 
-    return build_schematic_command(blueprint_id, x, y, z, rotation)
+    result = build_schematic_command(params.blueprint_id, x, y, z, params.rotation)
+    if result is None:
+        raise ValueError(
+            f"Blueprint '{params.blueprint_id}' not found. "
+            f"Use search_schematics to find valid blueprint IDs, "
+            f"then copy the exact ID from the search results.")
+    return result
+
+
+# ─── Schematic search (tool results, not commands) ───────────────────────────
 
 
 def get_schematic_tool_results(tool_calls: list) -> dict[str, str]:

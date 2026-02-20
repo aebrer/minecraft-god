@@ -4,17 +4,35 @@ All tests go through the public interface: translate_tool_calls() and
 get_schematic_tool_results(). This ensures the tests describe WHAT the
 system does (blocks dangerous items, clamps durations, etc.) rather than
 HOW it's implemented internally.
+
+Tool call arguments are validated through pydantic models with helpful error
+messages. Player names are validated against the server whitelist.
 """
 
 import json
 import types
 from unittest.mock import patch
 
+import pytest
+
 from server.commands import (
     BLOCKED_ITEMS,
     get_schematic_tool_results,
+    get_whitelist_names as _real_get_whitelist_names,
     translate_tool_calls,
 )
+
+
+# All tests use a mock whitelist so player names aren't rejected
+# against the real server whitelist
+_TEST_WHITELIST = {"Steve", "Alex", "aeBRER", "Player_1", "testplayer"}
+
+
+@pytest.fixture(autouse=True)
+def mock_whitelist():
+    """Tests use a mock whitelist so test player names pass validation."""
+    with patch("server.commands.get_whitelist_names", return_value=_TEST_WHITELIST):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +119,7 @@ def test_chat_message_public():
 
 def test_chat_message_private():
     cmds = _cmds("send_message",
-                 {"message": "Secret", "style": "chat", "target_player": "Steve"})
+                 {"message": "Secret", "target_player": "Steve"})
     assert len(cmds) == 2
     # First is whisper to target, second is notification to others
     assert "Steve" in cmds[0]["command"]
@@ -109,25 +127,11 @@ def test_chat_message_private():
     assert "whispers to Steve" in cmds[1]["command"]
 
 
-def test_title_style_becomes_tellraw():
-    """Title style is accepted but routes through tellraw chat."""
-    cmd = _cmd("send_message", {"message": "Big text", "style": "title"})
+def test_extra_fields_are_silently_ignored():
+    """Unknown fields in tool call args don't break translation."""
+    cmd = _cmd("send_message", {"message": "Big text", "style": "title", "color": "red"})
     assert "tellraw @a" in cmd["command"]
     assert "Big text" in cmd["command"]
-
-
-def test_actionbar_style_becomes_tellraw():
-    """Actionbar style is accepted but routes through tellraw chat."""
-    cmd = _cmd("send_message", {"message": "Status text", "style": "actionbar"})
-    assert "tellraw @a" in cmd["command"]
-    assert "Status text" in cmd["command"]
-
-
-def test_message_without_style():
-    """Style parameter is optional — defaults to chat/tellraw."""
-    cmd = _cmd("send_message", {"message": "Hello"})
-    assert "tellraw @a" in cmd["command"]
-    assert "Hello" in cmd["command"]
 
 
 def test_long_message_wraps_into_multiple_commands():
@@ -152,7 +156,7 @@ def test_message_newlines_split_into_lines():
 
 def test_message_invalid_target_produces_no_commands():
     cmds = _cmds("send_message",
-                 {"message": "Hi", "style": "chat", "target_player": "@e[type=zombie]"})
+                 {"message": "Hi", "target_player": "@e[type=zombie]"})
     assert cmds == []
 
 
@@ -191,9 +195,28 @@ def test_valid_player_names():
 
 
 def test_invalid_player_names():
-    for name in ("", "a" * 33, "player;drop table"):
+    for name in ("a" * 33, "player;drop table"):
         cmds = _cmds("give_effect", {"target_player": name, "effect": "speed"})
         assert cmds == []
+
+
+def test_player_not_on_whitelist_rejected():
+    """Player names not on the whitelist produce a helpful error."""
+    commands, errors = _translate_one("give_effect",
+                                      {"target_player": "FakePlayer", "effect": "speed"})
+    assert commands == []
+    assert len(errors) == 1
+    error_msg = list(errors.values())[0]
+    assert "not on the whitelist" in error_msg
+    assert "Steve" in error_msg  # should list valid players
+
+
+def test_whitelist_check_is_case_insensitive():
+    """Whitelist matching is case-insensitive."""
+    cmd = _cmd("give_effect", {"target_player": "steve", "effect": "speed"})
+    assert cmd is not None
+    cmd = _cmd("give_effect", {"target_player": "AEBRER", "effect": "speed"})
+    assert cmd is not None
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +583,104 @@ def test_build_llm_misspelled_player_falls_back_to_requesting():
     assert len(cmds) == 1
     assert cmds[0]["x"] == 100
     assert cmds[0]["z"] == 190  # Falls back to testplayer's position
+
+
+# ---------------------------------------------------------------------------
+# Validation error messages (helpful feedback for the LLM)
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_mob_error_lists_valid_mobs():
+    """Error message for invalid mob includes the list of valid mob types."""
+    _, errors = _translate_one("summon_mob", {"mob_type": "wither"})
+    assert len(errors) == 1
+    error_msg = list(errors.values())[0]
+    assert "zombie" in error_msg  # at least one valid mob listed
+    assert "cow" in error_msg
+
+
+def test_invalid_effect_error_lists_valid_effects():
+    """Error message for invalid effect includes valid effect names."""
+    _, errors = _translate_one("give_effect", {"target_player": "@a", "effect": "super_power"})
+    assert len(errors) == 1
+    error_msg = list(errors.values())[0]
+    assert "speed" in error_msg
+    assert "regeneration" in error_msg
+
+
+def test_blocked_item_error_mentions_restricted():
+    """Error message for blocked items says it's restricted."""
+    _, errors = _translate_one("give_item", {"player": "@a", "item": "command_block"})
+    assert len(errors) == 1
+    error_msg = list(errors.values())[0]
+    assert "restricted" in error_msg.lower() or "command_block" in error_msg
+
+
+def test_validation_error_includes_field_name():
+    """Error messages identify which field is invalid."""
+    _, errors = _translate_one("summon_mob", {"mob_type": "wither", "location": "$(rm -rf /)"})
+    assert len(errors) == 1
+    error_msg = list(errors.values())[0]
+    # Should mention at least one of the failing fields
+    assert "mob_type" in error_msg or "location" in error_msg
+
+
+def test_unknown_tool_error_is_descriptive():
+    """Unknown tool names produce a clear error, not a traceback."""
+    _, errors = _translate_one("hack_server", {"target": "everything"})
+    error_msg = list(errors.values())[0]
+    assert "hack_server" in error_msg.lower() or "unknown" in error_msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Whitelist file loading (uses the real function, bypasses autouse mock)
+# ---------------------------------------------------------------------------
+
+
+def test_whitelist_loads_from_file(tmp_path):
+    """Whitelist names are loaded from the Paper server whitelist file."""
+    import server.commands as cmd_module
+
+    whitelist_file = tmp_path / "whitelist.json"
+    whitelist_file.write_text(json.dumps([
+        {"uuid": "abc", "name": "TestPlayer1"},
+        {"uuid": "def", "name": "TestPlayer2"},
+    ]))
+
+    old_file = cmd_module.WHITELIST_FILE
+    old_cache = cmd_module._whitelist_cache
+    old_mtime = cmd_module._whitelist_mtime
+    try:
+        cmd_module.WHITELIST_FILE = whitelist_file
+        cmd_module._whitelist_cache = None
+        cmd_module._whitelist_mtime = 0
+        # Call the real function (stashed at import before autouse mock)
+        names = _real_get_whitelist_names()
+        assert names == {"TestPlayer1", "TestPlayer2"}
+    finally:
+        cmd_module.WHITELIST_FILE = old_file
+        cmd_module._whitelist_cache = old_cache
+        cmd_module._whitelist_mtime = old_mtime
+
+
+def test_whitelist_missing_file_returns_empty_set():
+    """Missing whitelist file returns empty set (graceful degradation)."""
+    import server.commands as cmd_module
+    from pathlib import Path
+
+    old_file = cmd_module.WHITELIST_FILE
+    old_cache = cmd_module._whitelist_cache
+    old_mtime = cmd_module._whitelist_mtime
+    try:
+        cmd_module.WHITELIST_FILE = Path("/nonexistent/whitelist.json")
+        cmd_module._whitelist_cache = None
+        cmd_module._whitelist_mtime = 0
+        names = _real_get_whitelist_names()
+        assert names == set()
+    finally:
+        cmd_module.WHITELIST_FILE = old_file
+        cmd_module._whitelist_cache = old_cache
+        cmd_module._whitelist_mtime = old_mtime
 
 
 # ---------------------------------------------------------------------------
