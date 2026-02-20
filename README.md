@@ -12,7 +12,7 @@ Built on Paper MC (Java Edition) with a Python/FastAPI backend and LLM tool call
 
 The surface deity. Genuinely cares about the players but is bound by Rules it cannot fully explain. Cryptic by necessity, not by choice. Assigns quests, gifts items, builds structures, strikes lightning at dramatic moments, and occasionally slips into something vast and incomprehensible before snapping back to being nice.
 
-The Kind God **remembers**. It maintains persistent memory across sessions — who you are, what you've done, promises it made, how it feels about you. It consolidates these memories periodically, keeping what matters and letting the rest fade. Only the Kind God gets memory. The Deep God doesn't care about individuals.
+The Kind God **remembers**. It maintains persistent memory across sessions — who you are, what you've done, promises it made, how it feels about you. It consolidates these memories periodically, keeping what matters and letting the rest fade. Players can say "remember" in chat to trigger consolidation on demand. The Deep God doesn't care about individuals.
 
 When you die, the Kind God knows. It tracks death histories — where, how, how many times — and references them with sympathy or dark humor.
 
@@ -37,6 +37,16 @@ The Deep God doesn't run on a timer. It **activates** when players cross into it
 A poetic guide who speaks exclusively in iambic pentameter. The Herald exists to help players progress toward defeating the Ender Dragon — offering practical Minecraft advice wrapped in verse. It only speaks when directly addressed ("herald" or "bard" in chat), keeps responses to 2-4 lines, and has a hard constraint: **silence beats bad meter.**
 
 The Herald is not the Kind God (cryptic, bound by Rules) nor the Deep God (alien, territorial). It is a separate voice — warm, helpful, and endlessly poetic.
+
+### The God of Digging
+
+> *"Greetings, mortals! It is I, Dug-las Adams — here to excavate the meaning of life, the universe, and this really promising-looking cliff face. 8.5/10 — Exquisite depth. The void gazes back admiringly."*
+
+An impossibly enthusiastic deity devoted entirely to the sacred art of excavation. The God of Digging actually modifies terrain — carving holes, tunnels, staircases, and shafts on request. It rates every excavation on a scale of 1-10 with specific critique, invents a different punny alias every appearance ("Bore-is Johnson", "Shaft-speare", "Indiana Holes", "Pitrick Stewart"), and considers itself an artist. Slightly competitive with the Kind God, who builds *up* — how gauche.
+
+Triggered by dig keywords in chat ("dig", "hole", "tunnel", "excavate", "shaft", "staircase"). When asked for non-digging things, it cheerfully redirects to the Kind God: *"That sounds like a job for the Kind God! I only deal in the sacred art of removal."*
+
+The God of Digging **also remembers** — it maintains its own memory archive of past excavations, recording the alias it used, what it dug, for whom, and its opinion of the result.
 
 ## How It Works
 
@@ -69,18 +79,21 @@ When the Deep God intercepts a prayer instead of the Kind God, the player sees c
 
 ### What the Gods Can Do
 
-| Tool | Kind God | Deep God | Herald |
-|------|----------|----------|--------|
-| Send messages (chat, title, actionbar) | yes | actionbar/title only | chat only |
-| Summon mobs (max 5) | all types | cave mobs only | no |
-| Change weather | all | thunder only | no |
-| Apply status effects (max 120s) | all | darkness, fatigue, slowness | no |
-| Give/remove items | yes | no | no |
-| Strike lightning | yes | yes | no |
-| Teleport players | yes | no | no |
-| Assign quests | yes | no | no |
-| Build schematics | yes (multi-turn) | no | no |
-| Do nothing (explicitly) | yes | yes | yes |
+| Tool | Kind God | Deep God | Herald | God of Digging |
+|------|----------|----------|--------|----------------|
+| Send messages | yes | yes | yes | yes |
+| Summon mobs (max 5) | all types | cave mobs only | no | no |
+| Change weather | all | thunder only | no | no |
+| Apply status effects (max 120s) | all | darkness, fatigue, slowness | no | no |
+| Give/remove items | yes | no | no | no |
+| Strike lightning | yes | yes | no | no |
+| Teleport players | yes | no | no | no |
+| Assign quests | yes | no | no | no |
+| Build schematics | yes (multi-turn) | no | no | no |
+| Dig terrain (hole, tunnel, staircase, shaft) | no | no | no | yes |
+| Undo last build/dig | yes | no | no | yes |
+| Redirect to Kind God | no | no | no | yes |
+| Do nothing (explicitly) | yes | yes | yes | yes |
 
 ### Divine Construction
 
@@ -91,9 +104,36 @@ The Kind God can search and build structures from a library of schematics using 
 
 The plugin places blocks progressively bottom-to-top with lightning, particles, and a completion sound. The schematic pipeline scrapes blueprints from public sources and converts them to Sponge Schematic v2 format — schematics aren't included in this repo (not redistributable), but the pipeline is.
 
+### Divine Excavation
+
+The God of Digging modifies terrain directly — four dig shapes, validated through pydantic models:
+
+- **Hole**: Rectangular pit straight down (width up to 32, depth up to 64)
+- **Tunnel**: Horizontal passage in a cardinal direction (up to 32 wide, 16 tall, 64 long)
+- **Staircase**: Carved staircase with actual stair blocks (up or down, up to 64 steps)
+- **Shaft**: Vertical column with square cross-section (up or down)
+
+Digs play a warden dig sound on completion (no lightning — it would set things on fire). Both divine construction and divine excavation share an undo history, so `/godhelp` reminds players they can ask any terrain-modifying god to undo.
+
+### Inter-God Communication
+
+The gods are aware of each other. When the God of Digging receives a request it can't handle (items, mobs, weather), it forwards the request to the Kind God through a visible in-game handoff. The Kind God then processes it as a normal prayer.
+
+### Thinking Aloud
+
+All gods broadcast their reasoning in real-time chat before acting — players see lines like *"The Kind God thinks: This player has been loyal..."* in the god's signature color. JSON, commands, and markdown artifacts are filtered out, and output is capped at 6 lines to prevent chat spam.
+
+### Silence Feedback
+
+When a god hears a prayer but chooses not to act, the player receives a randomized atmospheric message rather than nothing at all. Each god has its own pool — the Kind God offers gentle silence (*"A warm light flickers... and fades."*), the Deep God is dismissive (*"The stone does not care about your request."*), and the God of Digging is characteristically dramatic (*"Your request lacks... depth."*).
+
+### Player Commands
+
+- **`/godhelp`** — Explains the god system, keywords, and how to interact with each deity. New players receive this automatically on first join.
+
 ### Security
 
-All tool calls are translated through a command allowlist — only ~13 Minecraft command prefixes are permitted. Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM to mitigate prompt injection. Mob summons are capped at 5, effects at 120 seconds, and build placement is resolved server-side (the LLM never computes coordinates). No dynamic code execution, no shell access, no filesystem access in the pipeline.
+All tool calls are validated through pydantic models and translated through a command allowlist — only ~13 Minecraft command prefixes are permitted. Player chat is wrapped in `[PLAYER CHAT]` delimiters before reaching the LLM to mitigate prompt injection. Mob summons are capped at 5, effects at 120 seconds, dig dimensions are capped per axis, and build/dig placement is resolved server-side (the LLM never computes coordinates). Validation errors are returned to the LLM for self-correction. No dynamic code execution, no shell access, no filesystem access in the pipeline.
 
 The worst case from a prompt injection is the god saying something weird or summoning some mobs. Which is kind of on-brand.
 
