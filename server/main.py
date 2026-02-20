@@ -765,6 +765,9 @@ async def _process_divine_request(request: DivineRequest):
                                f"(attempt {request.attempts}/{MAX_ATTEMPTS})")
                 return
 
+            if kind_god.last_memory:
+                _log_activity(f"Kind God reflects: {kind_god.last_memory}")
+
     if commands:
         command_queue.extend(commands)
         cmd_summaries = []
@@ -943,6 +946,9 @@ async def _god_tick_inner():
             _recent_logs.append({"time": tick_ts, "god": "kind", "action": "tick_error",
                                  "error": kind_god.last_error})
             commands = []
+
+        if kind_god.last_memory:
+            _log_activity(f"Kind God reflects: {kind_god.last_memory}")
 
     if commands:
         command_queue.extend(commands)
